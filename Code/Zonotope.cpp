@@ -124,6 +124,28 @@ AbstractValue* Zonotope::assignStackValue(std::string variableName, std::string 
     return currentAbstractValue;
 }
 
+void Zonotope::printAbstractValue(AbstractValue* currentAbstractValue)
+{
+    std::cout << currentAbstractValue->centralMatrix;
+    std::vector<std::pair<double,double>>::iterator itr;
+    for(itr = currentAbstractValue->constraintOverCentralMatrix.begin(); itr != currentAbstractValue->constraintOverCentralMatrix.end(); ++itr)
+    {
+        std::cout << "[" << itr->first << "," << itr->second << "]";
+        if(itr != currentAbstractValue->constraintOverCentralMatrix.end() - 1)
+            std::cout<<" X ";
+    }
+    std::cout << std::endl;
+    std::cout << std::endl;
+    std::cout << currentAbstractValue->perturbedMatrix;
+    for(itr = currentAbstractValue->constraintOverPerturbedMatrix.begin(); itr != currentAbstractValue->constraintOverPerturbedMatrix.end(); ++itr)
+    {
+        std::cout << "[" << itr->first << "," << itr->second << "]";
+        if(itr!=currentAbstractValue->constraintOverPerturbedMatrix.end())
+            std::cout<<" X ";
+    }
+    std::cout << std::endl;
+}
+
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -145,15 +167,42 @@ AbstractValue Zonotope::createAffineSet(std::string s)
 // adding custom intervals as variables
 AbstractValue* Zonotope::addCustomVariable(std::string s, std::pair<double,double> p, AbstractValue* currentAbstractValue)
 {
+    // setting the stack value of the variable
     StackValue* variable = new StackValue;
+    variable->varName = s;
+    variable->lv = VARIABLE;
+    variable->varPos = currentAbstractValue->p;
+    variable->flag = s_NONE;
     currentAbstractValue->affineSet.insert(std::make_pair(s, variable));
+
+    // setting the abstract value
+    if(currentAbstractValue->n == 0)
+        currentAbstractValue->centralMatrix.insert_rows(0,2);
+    else
+        currentAbstractValue->centralMatrix.insert_rows(currentAbstractValue->n+1,1);
+    currentAbstractValue->centralMatrix.insert_cols(currentAbstractValue->p,1);
+
+    currentAbstractValue->centralMatrix(0, currentAbstractValue->p) = (p.first + p.second)/2;
+    currentAbstractValue->n = currentAbstractValue->n + 1;
+    currentAbstractValue->centralMatrix(currentAbstractValue->n, currentAbstractValue->p) = (p.second - p.first)/2;
+    currentAbstractValue->p = currentAbstractValue->p + 1;
+    currentAbstractValue->constraintOverCentralMatrix.push_back(std::make_pair(-1.0,1.0));
     return currentAbstractValue;
 }
 
 
 int main()
 {
-    Zonotope X(); 
+    Zonotope zonotope;
+
+    AbstractValue X = zonotope.createAffineSet("X");
+    zonotope.addCustomVariable("x1",std::make_pair(0,10),&X);
+    zonotope.addCustomVariable("x2",std::make_pair(-5,5),&X);
+    zonotope.addCustomVariable("x3",std::make_pair(-12,16),&X);
+    zonotope.addCustomVariable("x4",std::make_pair(-7,12),&X);
+    zonotope.printAbstractValue(&X);
+
+
     return 0;
 
 }

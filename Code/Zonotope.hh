@@ -52,7 +52,7 @@ struct AbstractValue // defining an affine-set
     arma::Mat<double> centralMatrix; // saves Cx - size = (n+1)X(p)
     arma::Mat<double> perturbedMatrix; // saves Px - size = (m)X(p) 
     std::vector<std::pair<double,double>> constraintOverCentralMatrix; // saves the constains over Cx
-    std::vector<std::pair<double,double>> constaintOverPerturbedMatrix; // saves the constains over Px
+    std::vector<std::pair<double,double>> constraintOverPerturbedMatrix; // saves the constains over Px
 
     std::map<std::string, StackValue*> affineSet; // contains a map from the name of the variables to the memory location of variables
 
@@ -61,19 +61,22 @@ struct AbstractValue // defining an affine-set
 
 class Zonotope 
 {
-    Zonotope(); // constructor for the class
 
     private:
         StackValue topStackVal = {.varName = "TOP", .lv = VARIABLE, .concreteValue = std::make_pair(DBL_MIN, DBL_MAX), .varPos = -1, .flag = s_TOP, };
         StackValue botStackVal = {.varName = "BOT", .lv = VARIABLE, .concreteValue = std::make_pair(1.0,0.0), .varPos = -1, .flag = s_BOT, };
 
     public:
+
+        Zonotope(); // constructor for the class
+
         StackValue topStackValue(); // returns top stack value
         StackValue botStackValue(); // returns bot stack value
 
         bool isTopStackValue(StackValue*); // given a pointer to a stack value tells if its top
         bool isBotStackValue(StackValue*); // given a pointer to a stack value tells if its bot
         void printStackValue(AbstractValue*, StackValue*); // pretty prints the stack value
+        void printAbstractValue(AbstractValue*); // pretty prints the abstract value
 
         StackValue* getStackValueOfLiteral(std::string, double, AbstractValue*); // gets the stack value of a literal - MAKE USE OF APRON LIBRARY
         StackValue* getStackValueOfVariable(std::string, std::string, AbstractValue*); // gets the stack value of a variable - MAKE USE OF APRON LIBRARY
@@ -83,6 +86,7 @@ class Zonotope
         AbstractValue createAffineSet(std::string); // creates an empty affine-set with no variables
         AbstractValue* addCustomVariable(std::string, std::pair<double,double>, AbstractValue*);
 
+        StackValue* evaluateBinaryOperation(std::string, std::string, StackValue*, StackValue*, AbstractValue*);
 };
 
 
