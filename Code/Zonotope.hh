@@ -5,6 +5,11 @@
 #include<armadillo>
 #include<map>
 #include<vector>
+#include <ap_global0.h>
+#include <ap_global1.h>
+#include "float.h"
+#include "assert.h"
+
 
 enum stackValueFlag // for each stack value tells whether the affine-form corresponds to a TOP or BOT
 {
@@ -20,9 +25,17 @@ enum abstractValueFlag // for each affine-set tells whether the entire set is im
     a_NONE = 0,
 };
 
+enum litOrVar
+{
+    LITERAL = 0,
+    VARIABLE = 1,
+};
+
 struct StackValue
 {
     std::string varName; // string to set the name of the stack-variable
+    litOrVar lv; // tells whether the value corresponds to a literal or a variable
+    std::pair<double,double> concreteValue; // stores the concrete value
     int varPos; // int to set the position (on the column) in which the affine-variable is present in the affine-set
     stackValueFlag flag; // tells whether the stackValue is a TOP, BOT or neither of the two
 };
@@ -34,6 +47,7 @@ struct AbstractValue // defining an affine-set
     int n; // number of central noise symbols in the affine-set
     int m; // number of perturbed noise symbols in the affine-set
     int p; // number of variables in the affine-set
+
 
     abstractValueFlag flag; // for each affine-set tells whether the entire set is impossible or if it has no constaints
 
@@ -49,12 +63,19 @@ struct AbstractValue // defining an affine-set
 
 class Zonotope 
 {
-    StackValue* topStackValue(); // returns a pointer to a top stack value
-    StackValue* botStackValue(); // returns a pointer to a bot stack value
+    private:
+        StackValue topStackVal = {.varName = "TOP", .lv = VARIABLE, .concreteValue = std::make_pair(DBL_MIN, DBL_MAX), .varPos = -1, .flag = s_TOP, };
+        StackValue botStackVal = {.varName = "BOT", .lv = VARIABLE, .concreteValue = std::make_pair(1.0,0.0), .varPos = -1, .flag = s_BOT, };
 
-    bool isTopStackValue(StackValue*); // given a pointer to a stack value tells if its top
-    bool isBotStackValue(StackValue*); // given a pointer to a stack value tells if its bot
-    void printStackValue(StackValue*); // pretty prints the stack value
+    public:
+        StackValue topStackValue(); // returns top stack value
+        StackValue botStackValue(); // returns bot stack value
+
+        bool isTopStackValue(StackValue*); // given a pointer to a stack value tells if its top
+        bool isBotStackValue(StackValue*); // given a pointer to a stack value tells if its bot
+        void printStackValue(AbstractValue*, StackValue*); // pretty prints the stack value
+
+        StackValue* getStackValueOfLiteral(std::string, double, AbstractValue*);
 
 };
 
