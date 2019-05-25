@@ -5,8 +5,6 @@
 #include<armadillo>
 #include<map>
 #include<vector>
-#include <ap_global0.h>
-#include <ap_global1.h>
 #include "float.h"
 #include "assert.h"
 
@@ -63,6 +61,8 @@ struct AbstractValue // defining an affine-set
 
 class Zonotope 
 {
+    Zonotope(); // constructor for the class
+
     private:
         StackValue topStackVal = {.varName = "TOP", .lv = VARIABLE, .concreteValue = std::make_pair(DBL_MIN, DBL_MAX), .varPos = -1, .flag = s_TOP, };
         StackValue botStackVal = {.varName = "BOT", .lv = VARIABLE, .concreteValue = std::make_pair(1.0,0.0), .varPos = -1, .flag = s_BOT, };
@@ -75,7 +75,13 @@ class Zonotope
         bool isBotStackValue(StackValue*); // given a pointer to a stack value tells if its bot
         void printStackValue(AbstractValue*, StackValue*); // pretty prints the stack value
 
-        StackValue* getStackValueOfLiteral(std::string, double, AbstractValue*);
+        StackValue* getStackValueOfLiteral(std::string, double, AbstractValue*); // gets the stack value of a literal - MAKE USE OF APRON LIBRARY
+        StackValue* getStackValueOfVariable(std::string, std::string, AbstractValue*); // gets the stack value of a variable - MAKE USE OF APRON LIBRARY
+
+        AbstractValue* assignStackValue(std::string, std::string, StackValue*, AbstractValue*); // INCOMPLETE : uses APRON LIBRARY
+
+        AbstractValue createAffineSet(std::string); // creates an empty affine-set with no variables
+        AbstractValue* addCustomVariable(std::string, std::pair<double,double>, AbstractValue*);
 
 };
 

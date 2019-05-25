@@ -1,5 +1,7 @@
 #include "Zonotope.hh"
 
+Zonotope::Zonotope(){};
+
 StackValue Zonotope::topStackValue()
 {
     // returns the address to top stack value
@@ -67,12 +69,10 @@ void Zonotope::printStackValue(AbstractValue* abstractValue, StackValue* stackVa
     }
 }
 
-StackValue* getStackValueOfLiteral(std::string type, double value, AbstractValue* currentAbstractValue)
+StackValue* getStackValueOfLiteral(std::string type, double value, AbstractValue* currentAbstractValue) // add the apron features
 {
     // the name of the literal is stored as string denoting its position in the matrix
-    std::string apron_type_of_literal = getApronType(type);
-
-    if(strcmp(apron_type_of_literal.c_str(), "int") == 0)
+    if(strcmp(type.c_str(), "int") == 0)
     {
         StackValue *output = new StackValue;
         output->varName = "literal";
@@ -80,8 +80,9 @@ StackValue* getStackValueOfLiteral(std::string type, double value, AbstractValue
         output->concreteValue = std::make_pair((int)value,(int)value);
         output->varPos = -2;
         output->flag = s_NONE;
+        return output;
     }
-    else if(strcmp(apron_type_of_literal.c_str(), "real") == 0)
+    else if(strcmp(type.c_str(), "real") == 0)
     {
         StackValue *output = new StackValue;
         output->varName = "literal";
@@ -89,6 +90,7 @@ StackValue* getStackValueOfLiteral(std::string type, double value, AbstractValue
         output->concreteValue = std::make_pair((int)value,(int)value);
         output->varPos = -2;
         output->flag = s_NONE;
+        return output;
     }
     else
     {
@@ -98,10 +100,60 @@ StackValue* getStackValueOfLiteral(std::string type, double value, AbstractValue
 }
 
 
+// fetches the stack value of the variable from the affine-set
+StackValue* Zonotope::getStackValueOfVariable(std::string variableName, std::string variableType, AbstractValue* currentAbstractValue)
+{
+    std::map<std::string, StackValue*>::iterator itr;
+
+    // looks in the affine_set for the required variable
+    for(itr = currentAbstractValue->affineSet.begin(); itr != currentAbstractValue->affineSet.end(); ++itr)
+    {
+        if((itr->second)->varName.compare(variableName) == 0)
+            break;
+    }
+    // if the variable is not present, returns TOP
+    if(itr == currentAbstractValue->affineSet.end())
+        return &(this->topStackVal); //try not to alter this
+    else
+        return itr->second;
+}
+
+// left for later
+AbstractValue* Zonotope::assignStackValue(std::string variableName, std::string variableType, StackValue* rhsStackValue, AbstractValue* currentAbstractValue)
+{
+    return currentAbstractValue;
+}
+
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+// creates an empty affine set with name s
+AbstractValue Zonotope::createAffineSet(std::string s)
+{
+    AbstractValue a = {
+        .affineSetName = s,
+        .n = 0,
+        .m = 0,
+        .p = 0,
+        .flag = a_TOP,
+        .centralMatrix = arma::zeros(0,0),
+        .perturbedMatrix = arma::zeros(0,0),
+    };
+    return a;
+}
+
+// adding custom intervals as variables
+AbstractValue* Zonotope::addCustomVariable(std::string s, std::pair<double,double> p, AbstractValue* currentAbstractValue)
+{
+    StackValue* variable = new StackValue;
+    currentAbstractValue->affineSet.insert(std::make_pair(s, variable));
+    return currentAbstractValue;
+}
+
 
 int main()
 {
-    std::cout << "Hello World!" << std::endl;
+    Zonotope X(); 
     return 0;
 
 }
