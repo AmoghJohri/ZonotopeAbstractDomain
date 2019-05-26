@@ -5,9 +5,19 @@
 #include<armadillo>
 #include<map>
 #include<vector>
+#include<string>
 #include "float.h"
 #include "assert.h"
 
+
+int globalCounter = INT_MIN;
+
+enum LatticeCompare
+{
+    UC = -1,
+    LT = 0,
+    GT = 1,
+};
 
 enum stackValueFlag // for each stack value tells whether the affine-form corresponds to a TOP or BOT
 {
@@ -33,18 +43,22 @@ struct StackValue
 {
     std::string varName; // string to set the name of the stack-variable
     litOrVar lv; // tells whether the value corresponds to a literal or a variable
-    std::pair<double,double> concreteValue; // stores the concrete value
+    std::pair<double,double> concreteValue; // stores the concrete value, does not do it automatically for variables
     int varPos; // int to set the position (on the column) in which the affine-variable is present in the affine-set
     stackValueFlag flag; // tells whether the stackValue is a TOP, BOT or neither of the two
+
+    // literals don't get saved here
+    std::vector<std::pair<std::string, double>> centralVector;
+    std::vector<std::pair<std::string, double>> perturbedVector;
 };
 
 struct AbstractValue // defining an affine-set
 {
     std::string affineSetName; // string to save the name of the affine-set 
 
-    int n; // number of central noise symbols in the affine-set
-    int m; // number of perturbed noise symbols in the affine-set
-    int p; // number of variables in the affine-set
+    int n = 0; // number of central noise symbols in the affine-set + 1
+    int m = 0; // number of perturbed noise symbols in the affine-set
+    int p = 0; // number of variables in the affine-set
 
 
     abstractValueFlag flag; // for each affine-set tells whether the entire set is impossible or if it has no constaints
@@ -82,11 +96,14 @@ class Zonotope
         StackValue* getStackValueOfVariable(std::string, std::string, AbstractValue*); // gets the stack value of a variable - MAKE USE OF APRON LIBRARY
 
         AbstractValue* assignStackValue(std::string, std::string, StackValue*, AbstractValue*); // INCOMPLETE : uses APRON LIBRARY
+        LatticeCompare compare(AbstractValue*, AbstractValue*);
 
         AbstractValue createAffineSet(std::string); // creates an empty affine-set with no variables
         AbstractValue* addCustomVariable(std::string, std::pair<double,double>, AbstractValue*);
+        AbstractValue* addCustomVariable(StackValue*, AbstractValue*);
 
-        StackValue* evaluateBinaryOperation(std::string, std::string, StackValue*, StackValue*, AbstractValue*);
+        // see variable + literal case
+        StackValue* evaluateBinaryOperation(std::string, std::string, StackValue*, StackValue*, AbstractValue*); // MAKE APRON BASED MODIFICATIONS
 };
 
 
