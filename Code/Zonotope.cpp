@@ -1,4 +1,5 @@
 #include "Zonotope.hh"
+#include "SecondaryFunctions.cpp"
 
 Zonotope::Zonotope(){};
 
@@ -29,7 +30,7 @@ bool Zonotope::isBotStackValue(StackValue* s)
     return false;
 }
 
-void Zonotope::printStackValue(AbstractValue* abstractValue, StackValue* stackValue)
+void Zonotope::printStackValue(AbstractValue* abstractValue, StackValue* stackValue) // CHANGE THE FUNCTION
 {
     std::map<std::string, StackValue*>::iterator itr;
 
@@ -41,17 +42,17 @@ void Zonotope::printStackValue(AbstractValue* abstractValue, StackValue* stackVa
     }
 
     // if the variable is not present, returns TOP
-    if(itr == abstractValue->affineSet.end())
-        std::cout << "TOP" << std::endl;
-    else 
-    {
-        if((itr->second)->lv == LITERAL)
-        {
-            std::cout << (itr->second)->varName << " = " << (itr->second)->concreteValue.first;
-        }
-        int pos = (itr->second)->varPos; // the col. of the matrices where the variable is present
-
-        std::cout << (itr->second)->varName << " = ";
+    //if(itr == abstractValue->affineSet.end())
+    //    std::cout << "TOP" << std::endl;
+    //else 
+    //{
+        //if((itr->second)->lv == LITERAL)
+        //{
+        //    std::cout << (itr->second)->varName << " = " << (itr->second)->concreteValue.first;
+        //}
+        //int pos = (itr->second)->varPos; // the col. of the matrices where the variable is present
+//
+        //std::cout << (itr->second)->varName << " = ";
 
         //// prints the value of the central matrix
         //std::cout << abstractValue->centralMatrix(0,pos);
@@ -75,7 +76,7 @@ void Zonotope::printStackValue(AbstractValue* abstractValue, StackValue* stackVa
         std::cout << std::endl;
 
 
-    }
+   // }
 }
 
 StackValue* getStackValueOfLiteral(std::string type, double value, AbstractValue* currentAbstractValue) // add the apron features
@@ -121,6 +122,16 @@ LatticeCompare Zonotope::compare(AbstractValue* abs1, AbstractValue* abs2)
     arma::Mat<double> Pa1 = abs1->perturbedMatrix;
     arma::Mat<double> Pa2 = abs2->perturbedMatrix;
 
+    sort(abs1->constraintOverCentralMatrix.begin(),abs1->constraintOverCentralMatrix.end(),vecCompare1);
+    sort(abs2->constraintOverCentralMatrix.begin(),abs2->constraintOverCentralMatrix.end(),vecCompare1);
+    sort(abs1->constraintOverPerturbedMatrix.begin(),abs1->constraintOverPerturbedMatrix.end(),vecCompare1);
+    sort(abs2->constraintOverPerturbedMatrix.begin(),abs2->constraintOverPerturbedMatrix.end(),vecCompare1);
+
+    std::vector<std::pair<double,double>> Phi1CX = abs1->constraintOverCentralMatrix;
+    std::vector<std::pair<double,double>> Phi2CX = abs2->constraintOverCentralMatrix;
+    std::vector<std::pair<double,double>> Phi1PX = abs1->constraintOverPerturbedMatrix;
+    std::vector<std::pair<double,double>> Phi2PX = abs2->constraintOverPerturbedMatrix;
+
     // making the number of cols equal in all the matrices
     if(Ca1.n_cols < max_col + abs2->p)
     {
@@ -138,20 +149,24 @@ LatticeCompare Zonotope::compare(AbstractValue* abs1, AbstractValue* abs2)
     if(Ca1.n_rows < max_row_C + abs2->n)
     {
         Ca1.insert_rows(abs1->p, max_row_C);
+        Phi1CX.insert(Phi1CX.end(), std::make_pair(-1.0,1.0));
     }
     else if(Ca2.n_rows < max_row_C + abs1->n)
     {
         Ca2.insert_rows(abs2->n, max_row_C);
+        Phi2CX.insert(Phi2CX.end(), std::make_pair(-1.0,1.0));
     }
     
     // making the number of rows in Perturbed matrix equal
     if(Pa1.n_rows < max_row_P + abs1->m)
     {
         Pa1.insert_rows(abs1->m, max_row_P);
+        Phi1PX.insert(Phi1PX.end(), std::make_pair(-1.0,1.0));
     }
     else if(Pa2.n_rows < max_row_P, abs1->m)
     {
         Pa2.insert_rows(abs2->m, max_row_P);
+        Phi2PX.insert(Phi2PX.end(), std::make_pair(-1.0,1.0));
     }
     
     
@@ -166,14 +181,29 @@ LatticeCompare Zonotope::compare(AbstractValue* abs1, AbstractValue* abs2)
     while (counter < 100)
     {
         u = arma::randn(Ca1.n_cols);
-        double x = arma::accu((arma::abs((Ca2 - Ca1)*u)));
+
+        arma::Col<double> v = (Ca2 - Ca1)*u;
+        for(int i = 0; i < Phi1CX.size(); i++)
+            v(i) = v(i)* (std::max(abs(Phi1CX[i].first), abs(Phi1CX[i].second)));
+        double x = arma::accu(arma::abs(v));
+
+
         double y = 0;
         if(Pa2.n_rows != 0)
-         y = arma::accu(arma::abs(Pa2*u));
+            v = Pa2*u;
+            for(int i = 0; i < Phi2PX.size(); i++)
+                v(i) = v(i)* (std::max(abs(Phi2PX[i].first), abs(Phi2PX[i].second)));
+            y = arma::accu(arma::abs(v));
+        
+        
         double z = 0;
         if(Pa1.n_rows != 0)
-         z = arma::accu(arma::abs(Pa1*u));
+            v = Pa1*u;
+            for(int i = 0; i < Phi1PX.size(); i++)
+                v(i) = v(i)* (std::max(abs(Phi1PX[i].first), abs(Phi1PX[i].second)));
+            z = arma::accu(arma::abs(v));
         x = x + z - y;
+
         if(x > 0)
         {
             tag = 1;
@@ -191,14 +221,29 @@ LatticeCompare Zonotope::compare(AbstractValue* abs1, AbstractValue* abs2)
     while (counter < 100)
     {
         u = arma::randn(Ca1.n_cols);
-        double x = arma::accu((arma::abs((Ca2 - Ca1)*u)));
+
+        arma::Col<double> v = (Ca2 - Ca1)*u;
+        for(int i = 0; i < Phi2CX.size(); i++)
+            v(i) = v(i)* (std::max(abs(Phi2CX[i].first), abs(Phi2CX[i].second)));
+        double x = arma::accu(arma::abs(v));
+
+
         double y = 0;
         if(Pa2.n_rows != 0)
-         y = arma::accu(arma::abs(Pa2*u));
+            v = Pa2*u;
+            for(int i = 0; i < Phi2PX.size(); i++)
+                v(i) = v(i)* (std::max(abs(Phi2PX[i].first), abs(Phi2PX[i].second)));
+            y = arma::accu(arma::abs(v));
+        
+        
         double z = 0;
         if(Pa1.n_rows != 0)
-         z = arma::accu(arma::abs(Pa1*u));
-        x = x + y - z;
+            v = Pa1*u;
+            for(int i = 0; i < Phi1PX.size(); i++)
+                v(i) = v(i)* (std::max(abs(Phi1PX[i].first), abs(Phi1PX[i].second)));
+            z = arma::accu(arma::abs(v));
+        x = x - z  + y;
+       
         if(x > 0)
         {
             tag = 1;
@@ -210,6 +255,89 @@ LatticeCompare Zonotope::compare(AbstractValue* abs1, AbstractValue* abs2)
         return GT;
 
     return UC;
+
+}
+
+AbstractValue* Zonotope::join(AbstractValue* X, AbstractValue* Y)
+{
+    if((X->flag == a_TOP) || (Y->flag == a_TOP))
+        return X;
+    else if(X->flag == a_BOT)
+        return Y;
+    else if(Y->flag == a_BOT)
+        return X;
+    
+    // arranging all the noise symbols
+    
+    // initiliazing the new affine set
+    AbstractValue* Z = new AbstractValue;
+    Z->affineSetName = "Z";
+    Z->n = std::max(X->n, Y->n);
+    Z->p = std::max(X->p, Y->p);
+    Z->m = std::max(X->m, Y->m);
+
+    Z->flag = a_NONE;
+
+    Z->centralMatrix = arma::zeros(Z->n,Z->p);
+    Z->perturbedMatrix = arma::zeros(Z->n-1,Z->p);
+
+    for(int i = 0; i < Z->n; i++)
+        Z->constraintOverCentralMatrix.push_back(std::make_pair(-1,1));
+    for(int i = 0; i < Z->m; i++)
+        Z->constraintOverPerturbedMatrix.push_back(std::make_pair(-1,1));
+    //
+    // not setting the stack value for the new affine-set
+
+    // setting the rest of the matrices to be dimensionally equal
+    int max_col = abs(X->p - Y->p); // difference between the number of variables
+    int max_row_C = abs(X->n - Y->n); // differnce between the number of central noise symbols
+    int max_row_P = abs(X->m - Y->m); // difference between the number of perturbed noise symbols
+
+    arma::Mat<double> Ca1 = X->centralMatrix;
+    arma::Mat<double> Ca2 = Y->centralMatrix;
+    arma::Mat<double> Pa1 = X->perturbedMatrix;
+    arma::Mat<double> Pa2 = Y->perturbedMatrix;
+
+    // making the number of cols equal in all the matrices
+    if(Ca1.n_cols < max_col + Y->p)
+    {
+        Ca1.insert_cols(X->p, max_col);
+        Pa1.insert_cols(X->p, max_col);
+    }
+    else if(Ca2.n_cols < max_col + X->p)
+    {
+        Ca2.insert_cols(Y->p, max_col);
+        Pa2.insert_cols(Y->p, max_col);
+    }
+
+
+    // making the number of rows in Central matrix equal
+    if(Ca1.n_rows < max_row_C + Y->n)
+    {
+        Ca1.insert_rows(X->p, max_row_C);
+    }
+    else if(Ca2.n_rows < max_row_C + X->n)
+    {
+        Ca2.insert_rows(Y->n, max_row_C);
+    }
+    
+    // making the number of rows in Perturbed matrix equal
+    if(Pa1.n_rows < max_row_P + X->m)
+    {
+        Pa1.insert_rows(X->m, max_row_P);
+    }
+    else if(Pa2.n_rows < max_row_P, X->m)
+    {
+        Pa2.insert_rows(Y->m, max_row_P);
+    }
+    //
+
+    // Need to Joine (Ca1 + Pa1) and (Ca2 + Pa2)
+
+    for(int k = 0; k < Z->p ;k++) // over all the variables
+    {
+        
+    }
 
 }
 
@@ -244,6 +372,7 @@ AbstractValue* Zonotope::assignStackValue(std::string variableName, std::string 
 
 void Zonotope::printAbstractValue(AbstractValue* currentAbstractValue)
 {
+    std::cout << "///////////////////////////////////////////// REPORT ///////////////////////////////////////////////" << std::endl << std::endl;
     std::cout << currentAbstractValue->centralMatrix;
     std::vector<std::pair<double,double>>::iterator itr;
     for(itr = currentAbstractValue->constraintOverCentralMatrix.begin(); itr != currentAbstractValue->constraintOverCentralMatrix.end(); ++itr)
@@ -265,13 +394,14 @@ void Zonotope::printAbstractValue(AbstractValue* currentAbstractValue)
     std::cout << std::endl;
 
     std::map<std::string, StackValue*>::iterator itr2;
-    for(itr2 = (currentAbstractValue->affineSet).begin(); itr2 != (currentAbstractValue->affineSet).end(); ++itr2)
-    {
-        this->printStackValue(currentAbstractValue, (itr2->second));
-    }
+    //for(itr2 = (currentAbstractValue->affineSet).begin(); itr2 != (currentAbstractValue->affineSet).end(); ++itr2)
+    //{
+    //    this->printStackValue(currentAbstractValue, (itr2->second));
+    //}
     std::cout << "Number of Variables are : " << currentAbstractValue->p << std::endl;
     std::cout << "Number of Central Noise Symbols are : " << currentAbstractValue->n - 1 << std::endl;
     std::cout << "Number of Perturbed Noise Symbols are : " << currentAbstractValue->m << std::endl;
+    std::cout << "//////////////////////////////////////////////////////////////////////////////////////////////////////" << std::endl << std::endl;
 
 
 }
@@ -414,12 +544,16 @@ AbstractValue* Zonotope::addCustomVariable(StackValue* stValue, AbstractValue* a
         if(std::stoi(stValue->centralVector[counter].first) > max1)
             max1 = std::stoi(stValue->centralVector[counter].first);
     }
+
     if(max1 > 0 && abValue->n != 0 && (max1 - abValue->n > 0))
-        abValue->centralMatrix.insert_rows(abValue->n+1, max1 - abValue->n + 1);
+        abValue->centralMatrix.insert_rows(abValue->n, max1 - abValue->n + 1);
+
     else if(max1 > 0 && abValue->n == 0 && (max1 - abValue->n > 0))
         abValue->centralMatrix.insert_rows(0, max1 - abValue->n + 1);
+
     else if((max1 == 0) && (abValue->n == 0)) // adding a literal variable
         abValue->centralMatrix.insert_rows(0, 1);
+
     for(int counter = 0; counter < stValue->centralVector.size(); counter++)
     {
         abValue->centralMatrix(std::stoi(stValue->centralVector[counter].first),abValue->p) = stValue->centralVector[counter].second;
@@ -428,9 +562,9 @@ AbstractValue* Zonotope::addCustomVariable(StackValue* stValue, AbstractValue* a
     abValue->p = abValue->p + 1;
     if(abValue->centralMatrix.n_rows > abValue->n)
     {
-        for(int i = 0; i < abValue->centralMatrix.n_rows - abValue->n - 1; i++)
-            abValue->constraintOverCentralMatrix.push_back(std::make_pair(-1,1));
         abValue->n = abValue->centralMatrix.n_rows;
+        for(int i = 0; i <= (abValue->constraintOverCentralMatrix.size() - abValue->n) + 1; i++)
+            abValue->constraintOverCentralMatrix.push_back(std::make_pair(-1,1));
     }
     abValue->affineSet.insert(make_pair(stValue->varName, stValue));
     
@@ -438,7 +572,80 @@ AbstractValue* Zonotope::addCustomVariable(StackValue* stValue, AbstractValue* a
     // Included the perturbed form as well
 }
 
+std::pair<double, double> Zonotope::concretize(StackValue* s, AbstractValue* a)
+{
+    double ldev = 0;
+    double rdev = 0;
+
+    for(int i = 1; i < s->centralVector.size(); i++)
+    {
+        if(s->centralVector[i].second > 0)
+        {
+            ldev = ldev + s->centralVector[i].second*a->constraintOverCentralMatrix[std::stoi(s->centralVector[i].first) - 1].first;
+            rdev = rdev + s->centralVector[i].second*a->constraintOverCentralMatrix[std::stoi(s->centralVector[i].first) - 1].second;
+        }
+        else 
+        {
+            ldev = ldev + s->centralVector[i].second*a->constraintOverCentralMatrix[std::stoi(s->centralVector[i].first) - 1].second;
+            rdev = rdev + s->centralVector[i].second*a->constraintOverCentralMatrix[std::stoi(s->centralVector[i].first) - 1].first; 
+        }
+    }
+
+    for(int i = 0; i < s->perturbedVector.size(); i++)
+    {
+        if(s->perturbedVector[i].second > 0)
+        {
+            ldev = ldev + s->perturbedVector[i].second*a->constraintOverPerturbedMatrix[std::stoi(s->perturbedVector[i].first) - 1].first;
+            rdev = rdev + s->perturbedVector[i].second*a->constraintOverPerturbedMatrix[std::stoi(s->perturbedVector[i].first) - 1].second;
+        }
+        else 
+        {
+            ldev = ldev + s->perturbedVector[i].second*a->constraintOverPerturbedMatrix[std::stoi(s->perturbedVector[i].first) - 1].second;
+            rdev = rdev + s->perturbedVector[i].second*a->constraintOverPerturbedMatrix[std::stoi(s->perturbedVector[i].first) - 1].first; 
+        }
+    }
+
+    return std::make_pair(s->centralVector[0].second + ldev, s->centralVector[0].second + rdev);
+}
+
+std::pair<double, double> Zonotope::concretize(int k, AbstractValue* a)
+{
+    double ldev = 0;
+    double rdev = 0;
+
+    for(int i = 1; i < a->n; i++)
+    {
+        if(a->centralMatrix(i,k) > 0)
+        {
+            ldev = ldev + a->centralMatrix(i,k)*a->constraintOverCentralMatrix[i - 1].first;
+            rdev = rdev + a->centralMatrix(i,k)*a->constraintOverCentralMatrix[i - 1].second;
+        }
+        else 
+        {
+            ldev = ldev + a->centralMatrix(i,k)*a->constraintOverCentralMatrix[i - 1].second;
+            rdev = rdev + a->centralMatrix(i,k)*a->constraintOverCentralMatrix[i - 1].first;
+        }
+    }
+    for(int i = 0; i < a->m; i++)
+    {
+        if(a->perturbedMatrix(i,k) > 0)
+        {
+            ldev = ldev + a->perturbedMatrix(i,k)*a->constraintOverPerturbedMatrix[i].first;
+            rdev = rdev + a->perturbedMatrix(i,k)*a->constraintOverPerturbedMatrix[i].second;
+        }
+        else 
+        {
+            ldev = ldev + a->perturbedMatrix(i,k)*a->constraintOverPerturbedMatrix[i].second;
+            rdev = rdev + a->perturbedMatrix(i,k)*a->constraintOverPerturbedMatrix[i].first; 
+        }
+    }
+
+
+    return std::make_pair(a->centralMatrix(0,k) + ldev, a->centralMatrix(0,k) + rdev);
+}
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
 
 
 
@@ -493,25 +700,55 @@ int main()
     
 
     zonotope.addCustomVariable(&x1, &X);
+    //zonotope.printAbstractValue(&X);
+    
+    
     zonotope.addCustomVariable(&x2, &X);
-    zonotope.addCustomVariable(&y1, &Y);
-    zonotope.addCustomVariable(&y2, &Y);
+    //zonotope.printAbstractValue(&X);
+    
+    zonotope.addCustomVariable(&y1, &X);
+    //zonotope.printAbstractValue(&X);
+    zonotope.addCustomVariable(&y2, &X);
+    zonotope.addCustomVariable(zonotope.evaluateBinaryOperation("+","+",&x1,&y1,&X),&X);
+
+    vec = {std::make_pair("0",1.0), std::make_pair("2", 2.0), std::make_pair("4", -4.0)};
+    StackValue y3
+    {
+    .varName = "y3",
+    };
+    y3.flag = s_NONE;
+    y3.centralVector = vec;
+    y3.lv = VARIABLE;
+
+    zonotope.addCustomVariable(&y3, &X);
+    zonotope.addCustomVariable(zonotope.evaluateBinaryOperation("+","+",&y3,&x1,&X),&X);
+    StackValue* s = new StackValue;
+    s = zonotope.evaluateBinaryOperation("+","+",&y3,&x1,&X);
 
     X.perturbedMatrix = {{0,1},{0,0}}; // this does not change other values related to perturbation like m of the system 
     Y.perturbedMatrix = {{0,1},{1,0}}; // this does not change other values related to perturbation like m of the system
 
 
-    if(zonotope.compare(&X, &Y) == 0)
-        std::cout << "X < Y";
-    else if(zonotope.compare(&X,&Y) == 1)
-        std::cout << "Y < X";
-    else
-        std::cout << "Incomparable!";
-    std::cout << std::endl;
+    //if(zonotope.compare(&X, &Y) == 0)
+    //    std::cout << "X < Y";
+    //else if(zonotope.compare(&X,&Y) == 1)
+    //    std::cout << "Y < X";
+    //else
+    //    std::cout << "Incomparable!";
+    //std::cout << std::endl;
 
+
+    zonotope.printStackValue(&X, s);
     zonotope.printAbstractValue(&X);
-    zonotope.printAbstractValue(&Y);
 
+    //zonotope.printAbstractValue(&Y);
+    //std::cout << X.centralMatrix;
+    //printVectorOfDoubleAndDouble(X.constraintOverCentralMatrix);
+    //printAffineSet(X.affineSet);
+    
+    std::cout << zonotope.concretize(s,&X).first << " " << zonotope.concretize(s,&X).second << std::endl;
+    std::cout << zonotope.concretize(6,&X).first << " " << zonotope.concretize(6,&X).second << std::endl;
+    
     return 0;
 
 }
