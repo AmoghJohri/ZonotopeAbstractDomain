@@ -41,11 +41,11 @@ enum litOrVar
 
 struct StackValue
 {
-    std::string varName; // string to set the name of the stack-variable
-    litOrVar lv; // tells whether the value corresponds to a literal or a variable
-    std::pair<double,double> concreteValue; // stores the concrete value, does not do it automatically for variables
-    int varPos; // int to set the position (on the column) in which the affine-variable is present in the affine-set
-    stackValueFlag flag; // tells whether the stackValue is a TOP, BOT or neither of the two
+    std::string varName = "unnamed"; // string to set the name of the stack-variable
+    litOrVar lv = VARIABLE; // tells whether the value corresponds to a literal or a variable
+    std::pair<double,double> concreteValue = std::make_pair(1,0); // stores the concrete value, does not do it automatically for variables
+    int varPos = -10; // int to set the position (on the column) in which the affine-variable is present in the affine-set
+    stackValueFlag flag = s_NONE; // tells whether the stackValue is a TOP, BOT or neither of the two
 
     // literals don't get saved here
     std::vector<std::pair<std::string, double>> centralVector;
@@ -95,15 +95,27 @@ class Zonotope
         StackValue* getStackValueOfLiteral(std::string, double, AbstractValue*); // gets the stack value of a literal - MAKE USE OF APRON LIBRARY
         StackValue* getStackValueOfVariable(std::string, std::string, AbstractValue*); // gets the stack value of a variable - MAKE USE OF APRON LIBRARY
 
+        AbstractValue* join(AbstractValue*, AbstractValue*);
+
         AbstractValue* assignStackValue(std::string, std::string, StackValue*, AbstractValue*); // INCOMPLETE : uses APRON LIBRARY
         LatticeCompare compare(AbstractValue*, AbstractValue*);
 
         AbstractValue createAffineSet(std::string); // creates an empty affine-set with no variables
         AbstractValue* addCustomVariable(std::string, std::pair<double,double>, AbstractValue*);
         AbstractValue* addCustomVariable(StackValue*, AbstractValue*);
+        
+        
+        // HAVE TO IMPLEMENT THIS
+        AbstractValue* removeStackValue(StackValue*, AbstractValue*); // removes a stack value from the affine-set, required in order to carry out matrix based operations
+
 
         // see variable + literal case
         StackValue* evaluateBinaryOperation(std::string, std::string, StackValue*, StackValue*, AbstractValue*); // MAKE APRON BASED MODIFICATIONS
+
+        // secondary functions
+        std::pair<double,double> concretize(StackValue*, AbstractValue*);
+        std::pair<double,double> concretize(int, AbstractValue*);
+
 };
 
 
