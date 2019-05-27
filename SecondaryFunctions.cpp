@@ -5,17 +5,6 @@
 #include<iterator>
 #include "Zonotope.hh"
 
-bool vecCompare1(const std::pair<double, double>&i, const std::pair<double, double>&j)
-{
-    return (i.first) < (j.first);
-}
-
-
-bool vecCompare2(const std::pair<std::string, double>&i, const std::pair<std::string, double>&j)
-{
-    return (i.first) < (j.first);
-}
-
 
 void printVectorOfStringAndDouble(std::vector<std::pair<std::string, double>> v)
 {
@@ -59,3 +48,10 @@ std::pair<double,double> intervalJoin(std::pair<double,double> p1, std::pair<dou
 {
     return std::make_pair(std::min(p1.first, p2.first), std::max(p1.second, p2.second));
 }
+
+std::pair<double, double> intervalMeet(std::pair<double,double> p1, std::pair<double,double> p2)
+{
+    if(p1.second < p2.first || p2.second < p1.first)
+        return std::make_pair(1,0);
+    return std::make_pair(std::max(p1.first,p2.first), std::min(p1.second,p2.second));
+}  
