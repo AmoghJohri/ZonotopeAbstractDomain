@@ -55,3 +55,10 @@ std::pair<double, double> intervalMeet(std::pair<double,double> p1, std::pair<do
         return std::make_pair(1,0);
     return std::make_pair(std::max(p1.first,p2.first), std::min(p1.second,p2.second));
 }  
+
+bool intervalCompare(std::pair<double,double> p1, std::pair<double,double> p2)
+{
+    if(p2.second >= p1.second && p2.first <= p1.first)
+        return true;
+    return false;
+}

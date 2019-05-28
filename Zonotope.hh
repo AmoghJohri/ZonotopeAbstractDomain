@@ -105,6 +105,10 @@ class Zonotope
         void printStackValue(StackValue*); // pretty prints the stack value 
         void printAbstractValue(AbstractValue*); // pretty prints the abstract value
 
+        // COPY Functions
+        StackValue* copyStackValue(StackValue*); // copies the stack value into another stack value and returns it's pointer
+        AbstractValue* copyAbstractValue(AbstractValue*); // copies the abstract value into another abstract value and returns it's pointer
+
         StackValue* getStackValueOfLiteral(std::string, double, AbstractValue*); // gets the pointer to a stack-value with the literal - MAKE USE OF APRON LIBRARY
         StackValue* getStackValueOfVariable(std::string, std::string, AbstractValue*); // gets the stack value of a variable in the affine-set, copies it into another StackValue and returns the later's pointer- MAKE USE OF APRON LIBRARY
         AbstractValue* assignStackValue(std::string, std::string, StackValue*, AbstractValue*); // INCOMPLETE : uses APRON LIBRARY
@@ -115,11 +119,11 @@ class Zonotope
         
         AbstractValue createAffineSet(std::string); // creates an empty affine-set with no variables
         AbstractValue* addCustomVariable(std::string, std::pair<double,double>, AbstractValue*);
-        AbstractValue* addCustomVariable(StackValue*, AbstractValue*);
         
         StackValue* getStackValue(AbstractValue*, int); // gets the stack value from an affine set the the required position
         AbstractValue* removeStackValue(AbstractValue*, int); // removes a stack value from the affine-set, required in order to carry out matrix based operations
-        AbstractValue* fillAffineSet(); // fills the mapping of affine set with the matrix values
+        AbstractValue* addCustomVariable(StackValue*, AbstractValue*);
+        void fillAffineSet(AbstractValue*); // fills the mapping of affine set with the matrix values
 
         // HAVE TO IMPLEMENT THIS
         
