@@ -6,6 +6,16 @@
 #include "Zonotope.hh"
 
 
+bool vecCompare1(const std::pair<double, double>&i, const std::pair<double, double>&j)
+{
+    return (i.first) < (j.first);
+}
+
+bool vecCompare2(const std::pair<std::string, double>&i, const std::pair<std::string, double>&j)
+{
+    return (i.first) < (j.first);
+}
+
 void printVectorOfStringAndDouble(std::vector<std::pair<std::string, double>> v)
 {
     std::vector<std::pair<std::string, double>>::iterator itr;
@@ -61,4 +71,9 @@ bool intervalCompare(std::pair<double,double> p1, std::pair<double,double> p2)
     if(p2.second >= p1.second && p2.first <= p1.first)
         return true;
     return false;
+}
+
+void printInterval(std::pair<double,double>p)
+{
+    std::cout << "[ " << p.first << " , " << p.second << std::endl;
 }

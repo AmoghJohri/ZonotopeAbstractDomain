@@ -9,18 +9,6 @@
 #include "float.h"
 #include "assert.h"
 
-// EXTRA FUNCTIONS
-bool vecCompare1(const std::pair<double, double>&i, const std::pair<double, double>&j)
-{
-    return (i.first) < (j.first);
-}
-
-bool vecCompare2(const std::pair<std::string, double>&i, const std::pair<std::string, double>&j)
-{
-    return (i.first) < (j.first);
-}
-/////////////////////
-
 int globalCounter = INT_MIN; // in order to set the names for variables created as strings of integers;
 
 enum LatticeCompare // used in the compare operation, tells whether an affine-set is less than, greater than or equal to another affine-sets
@@ -116,7 +104,7 @@ class Zonotope
         AbstractValue* meet(AbstractValue*, AbstractValue*); // STILL HAVE TO IMLPEMENT
         
         AbstractValue createAffineSet(std::string); // creates an empty affine-set with no variables
-        AbstractValue* addCustomVariable(std::string, std::pair<double,double>, AbstractValue*);
+        AbstractValue* addCustomVariable(std::string, std::pair<double,double>, AbstractValue*); // takes the variable name and its interval and a pointer to an affine set to add the variable in the affine set
         
         StackValue* getStackValue(AbstractValue*, int); // gets the stack value from an affine set the the required position
         AbstractValue* removeStackValue(AbstractValue*, int); // removes a stack value from the affine-set, required in order to carry out matrix based operations
@@ -126,12 +114,12 @@ class Zonotope
         // HAVE TO IMPLEMENT THIS
         
         
-        // see variable + literal case
         StackValue* evaluateBinaryOperation(std::string, std::string, StackValue*, StackValue*, AbstractValue*); // MAKE APRON BASED MODIFICATIONS
+        StackValue* evaluateUnaryOperation(std::string, std::string, StackValue*, AbstractValue*); // MAKE APRON BASED MODIFICATIONS
 
         // secondary functions
-        std::pair<double,double> concretize(StackValue*, AbstractValue*);
-        std::pair<double,double> concretize(int, AbstractValue*);
+        std::pair<double,double> concretize(StackValue*, AbstractValue*); // takes a pointer to the stack value of an affine set and returns it's concretization
+        std::pair<double,double> concretize(int, AbstractValue*); // takes the position of a stack value in the abstract matrix and returns its conceretization
 
 };
 #endif

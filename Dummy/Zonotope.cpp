@@ -590,7 +590,6 @@ AbstractValue* Zonotope::join(AbstractValue* X, AbstractValue* Y) // joins two a
         Z->affineSet.insert(std::make_pair(std::to_string(k), getStackValue(Z,k))); // adds the variable pointer into the affine_set
     }
     Z->perturbedMatrix = Z->perturbedMatrix(arma::span(0,Z->m-1), arma::span(0,Z->p-1)); // removing extra rows
-    std::map<std::string, StackValue*>::iterator it; // sorting the inner vectors
     return Z;
 }
 
@@ -598,8 +597,7 @@ AbstractValue* Zonotope::join(AbstractValue* X, AbstractValue* Y) // joins two a
 // NO PROPER MEET FUNCTION NEED TO MAKE ADJUSTMENTS
 
 
-
-StackValue* Zonotope::evaluateBinaryOperation(std::string opcode, std::string return_type, StackValue* lhs_stack_value, StackValue* rhs_stack_value, AbstractValue* currentAbstractValue)
+StackValue* Zonotope::evaluateBinaryOperation(std::string opcode, std::string return_type, StackValue* lhs_stack_value, StackValue* rhs_stack_value, AbstractValue* currentAbstractValue) // evaluates binary operations over two variables of the affine set
 {
     // checks whether the two numbers are bot or top
     if((isBotStackValue(lhs_stack_value) || isBotStackValue(rhs_stack_value)))
@@ -619,43 +617,68 @@ StackValue* Zonotope::evaluateBinaryOperation(std::string opcode, std::string re
             std::map <std::string, double> temp; // to set the centralVector
             std::map <std::string, double>::iterator itr;
 
-            // setting the central vector
-            for(itr = lhs_stack_value->centralVector.begin(); itr != lhs_stack_value->centralVector.end(); ++itr)
+            if(lhs_stack_value->lv == VARIABLE)
             {
-                temp.insert(*itr);
-            }
-            for(itr = rhs_stack_value->centralVector.begin(); itr != rhs_stack_value->centralVector.end(); ++itr)
-            {
-                if(temp.find(itr->first) != temp.end())
-                {
-                    temp[itr->first] = temp[itr->first] + itr->second;
-                }
-                else
+                for(itr = lhs_stack_value->centralVector.begin(); itr != lhs_stack_value->centralVector.end(); ++itr)
                 {
                     temp.insert(*itr);
                 }
+                if(rhs_stack_value->lv == LITERAL) // if the rhs_stack_value is a literal
+                {
+                    temp["0"] = temp["0"] + rhs_stack_value->litValue;
+                }
+                else
+                {
+                    for(itr = rhs_stack_value->centralVector.begin(); itr != rhs_stack_value->centralVector.end(); ++itr)
+                    {
+                        if(temp.find(itr->first) != temp.end())
+                        {
+                            temp[itr->first] = temp[itr->first] + itr->second;
+                        }
+                        else
+                        {
+                            temp.insert(*itr);
+                        }
+                    }
+                }
+            }
+            else // if lhs_stack_value is a LITERAL and rhs_stack_value is a variable
+            {
+                for(itr = rhs_stack_value->centralVector.begin(); itr != rhs_stack_value->centralVector.end(); ++itr)
+                {
+                    temp.insert(*itr);
+                }
+                temp["0"] = temp["0"] + rhs_stack_value->litValue;
             }
             s->centralVector = temp;
 
 
             // setting the perturbed vector for the output
             temp.clear();
-            for(itr = lhs_stack_value->perturbedVector.begin(); itr != lhs_stack_value->perturbedVector.end(); ++itr)
+            // if both the terms are VARIABLES
+            if(lhs_stack_value->lv == VARIABLE && rhs_stack_value->lv == VARIABLE)
             {
-                temp.insert(*itr);
-            }
-            for(itr = rhs_stack_value->perturbedVector.begin(); itr != rhs_stack_value->perturbedVector.end(); ++itr)
-            {
-                if(temp.find(itr->first) != temp.end())
-                {
-                    temp[itr->first] = temp[itr->first] + itr->second;
-                }
-                else
+                for(itr = lhs_stack_value->perturbedVector.begin(); itr != lhs_stack_value->perturbedVector.end(); ++itr)
                 {
                     temp.insert(*itr);
                 }
+                for(itr = rhs_stack_value->perturbedVector.begin(); itr != rhs_stack_value->perturbedVector.end(); ++itr)
+                {
+                    if(temp.find(itr->first) != temp.end())
+                    {
+                        temp[itr->first] = temp[itr->first] + itr->second;
+                    }
+                    else
+                    {
+                        temp.insert(*itr);
+                    }
+                }
+                s->perturbedVector = temp;
             }
-            s->perturbedVector = temp;
+            else if(lhs_stack_value->lv == LITERAL) // if lhs_stack_value is a LITERAL
+                s->perturbedVector = rhs_stack_value->perturbedVector;
+            else // if rhs_stack_value is a LITERAl
+                s->perturbedVector = lhs_stack_value->perturbedVector;
         }
         return s;
     }
@@ -692,6 +715,49 @@ StackValue* Zonotope::evaluateBinaryOperation(std::string opcode, std::string re
         return lhs_stack_value;
 }
 
+StackValue* Zonotope::evaluateUnaryOperation(std::string opcode, std::string return_type, StackValue* stackValue, AbstractValue* currentAbstractValue) // performs a unary operation on the stackvalue and changes its value
+{
+    // checks whether the two numbers are bot or top
+    if(stackValue->flag == s_TOP)
+        return stackValue;
+    else if(stackValue->flag == s_BOT)
+        return stackValue;
+
+    if(strcmp(opcode.c_str(),"-") == 0) // negates the number
+    {
+        if(stackValue->lv == VARIABLE)
+        {
+            std::map<std::string, StackValue*>::iterator itr;
+            for(itr = currentAbstractValue->affineSet.begin(); itr != currentAbstractValue->affineSet.end(); ++itr)
+            {
+                if(itr->second->varName == stackValue->varName) // compares the name of the variable
+                    break;
+            }
+            if(itr != currentAbstractValue->affineSet.end())
+            {
+                std::map<std::string,double>::iterator it;
+                for(it = stackValue->centralVector.begin(); it != stackValue->centralVector.end(); ++it) // negating the central vector terms
+                    stackValue->centralVector[it->first] = -1*stackValue->centralVector[it->first];
+                for(it = stackValue->perturbedVector.begin(); it != stackValue->perturbedVector.end(); ++it) // negating the perturbed vector terms
+                    stackValue->perturbedVector[it->first] = -1*stackValue->perturbedVector[it->first];
+
+                for(int i = 0; i < currentAbstractValue->n; i++) // modifying central matrix
+                    currentAbstractValue->centralMatrix(i,stackValue->varPos) = -1*currentAbstractValue->centralMatrix(i,stackValue->varPos);
+                for(int i = 0; i < currentAbstractValue->m; i++) // modifying perturbed matrix
+                    currentAbstractValue->perturbedMatrix(i,stackValue->varPos) = -1*currentAbstractValue->perturbedMatrix(i,stackValue->varPos);
+            }
+        }
+        else
+        {
+            stackValue->litValue = -1*stackValue->litValue;
+        }
+        return stackValue;
+    }
+    else
+        return stackValue;
+    
+}
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 // creates an empty affine set with name s
@@ -710,7 +776,7 @@ AbstractValue Zonotope::createAffineSet(std::string s)
 }
 
 // adding custom intervals as variables
-AbstractValue* Zonotope::addCustomVariable(std::string s, std::pair<double,double> p, AbstractValue* currentAbstractValue) 
+AbstractValue* Zonotope::addCustomVariable(std::string s, std::pair<double,double> p, AbstractValue* currentAbstractValue) // takes a string and interval to denote a variable and adds the variable to the affine set
 {
     // forming the new stack variable
     StackValue* variable = new StackValue; // allocating memory
@@ -740,7 +806,7 @@ AbstractValue* Zonotope::addCustomVariable(std::string s, std::pair<double,doubl
     return currentAbstractValue;
 }
 
-AbstractValue* Zonotope::addCustomVariable(StackValue* stValue, AbstractValue* abValue) 
+AbstractValue* Zonotope::addCustomVariable(StackValue* stValue, AbstractValue* abValue) // takes a pointer to a stack value and abstract value and adds the stack value to the affine set
 {
     // checking whether the stack value is a top or a bot
     if(stValue->flag == s_TOP)
@@ -1019,22 +1085,19 @@ int main()
     var2->centralVector = { {"0",-1}, {"2", -2}, {"3", 1} };
     var2->perturbedVector = { {"1",3}, {"3", 2}, {"6", -1} };
 
-    zonotope.printStackValue(var1);
-    zonotope.printStackValue(var2);
-
     StackValue* var3 = zonotope.copyStackValue(var1);
-    zonotope.printStackValue(var3);
 
     X = zonotope.addCustomVariable(var1, X);
     X = zonotope.addCustomVariable(var2, X);
     X = zonotope.addCustomVariable(var3, X);
 
-    X = zonotope.join(X, X);
-
-    std::pair<double,double> c1 = zonotope.concretize(var1, X);
+    var3 = zonotope.evaluateBinaryOperation("+","+",var1,var2,X);
+    zonotope.printStackValue(var1);
+    zonotope.printStackValue(var2);
+    zonotope.printStackValue(var3);
+    zonotope.evaluateUnaryOperation("-","-",var1,X);    
 
     zonotope.printAbstractValue(X);
-    
 
     return 0;
 
