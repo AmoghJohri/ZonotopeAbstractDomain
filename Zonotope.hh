@@ -3,6 +3,7 @@
 
 #include <iostream>
 #include <map>
+#include <limits>
 #include<armadillo>
 
 #include "AbstractDomain.hh"
@@ -105,6 +106,14 @@ public:
     bool isTopStackValue(ZonotopeStackValue*);
     std::pair<double, double> concretize(ZonotopeStackValue*, ZonotopeAbstractValue*);
     ZonotopeAbstractValue* addVariableToAffineSet(ZonotopeStackValue*, ZonotopeAbstractValue*);
+    ZonotopeAbstractValue* removeStackValue(ZonotopeAbstractValue* , int);
+
+    template <typename T1, typename T2>
+    bool checkOverflow(std::string, std::pair<T1,T2>);
+    
+    template <typename T1, typename T2, typename T3, typename T4>
+    bool intervalCompare(std::pair<T1,T2>, std::pair<T3,T4>);
+    
 
 };    
 

@@ -330,12 +330,14 @@ StackValue* Zonotope::castStackValue(std::string src_type, std::string dest_type
     ZonotopeStackValue *result = new ZonotopeStackValue;
     ZonotopeAbstractValue *abstract_value = (ZonotopeAbstractValue*) current_abstract_value;
 
+    std::pair<double,double> interval = concretize(operand, abstract_value);
     // Do cast operation on operand to get result
     // Includes all unary arithematic operations.
-    if(src_type == dest_type)
-    {
+
+    if(checkOverflow(dest_type, interval))
         result = copyStackValue(operand);
-    }
+    else
+        std::cout << "OVER-FLOW DETECTED" << std::endl;
     return result;
 }
 
@@ -407,6 +409,7 @@ ZonotopeAbstractValue* Zonotope::addVariableToAffineSet(ZonotopeStackValue* stVa
         abValue->centralMatrix.insert_cols(abValue->p,1);
         abValue->perturbedMatrix.insert_cols(abValue->p,1);
         stValue->varPos = abValue->p;
+        abValue->p = abValue->p + 1;
     }
     else
     {
@@ -477,8 +480,81 @@ ZonotopeAbstractValue* Zonotope::addVariableToAffineSet(ZonotopeStackValue* stVa
             abValue->constraintOverPerturbedMatrix.push_back(std::make_pair(-1,1));
     }
 
-    abValue->p = abValue->p + 1;
     abValue->flag = a_NONE;
     return abValue;
     // Included the perturbed form as well
+}
+
+ZonotopeAbstractValue* Zonotope::removeStackValue(ZonotopeAbstractValue* a, int k) // removes the variable at position k in the matrix from the affine-set
+{
+    if(a->p < k) // the stack_value doesn't exist
+        return a;
+
+    // removing it from the affine-set
+    std::map<std::string, ZonotopeStackValue*>::iterator itr;
+    for(itr = a->affineSet.begin(); itr != a->affineSet.end(); ++itr)
+    {
+        if(itr->second->varPos == k)
+            break;
+    }
+
+    // something wrong with the structure
+    if(itr == a->affineSet.end())
+        return a;
+    else
+        a->affineSet.erase(itr->first); // removing the stack value from the affine set
+    
+    if(a->n != 0) // checking for a 0 matrix
+        a->centralMatrix.shed_col(k);
+    if(a->m != 0)// checking for a 0 matrix
+        a->perturbedMatrix.shed_col(k);
+    for(itr = a->affineSet.begin(); itr != a->affineSet.end(); ++itr)
+    {
+        if(itr->second->varPos > k) // correcting the variable for all the stack variables
+            itr->second->varPos = itr->second->varPos - 1;
+    }
+    a->p = a->p - 1;
+    
+    // if there are no variables that is the same as the abstract set being a TOP
+    if(a->p == 0)
+        a->flag = a_TOP;
+
+    return a;
+    
+}
+
+template <typename T1, typename T2, typename T3, typename T4>
+bool Zonotope::intervalCompare(std::pair<T1,T2> p1, std::pair<T3,T4> p2) // returns true if p2 <= p1
+{
+    if(p2.second <= p1.second && p2.first >= p1.first)
+        return true;
+    return false;
+}
+
+
+template <typename T1, typename T2>
+bool Zonotope::checkOverflow(std::string datatype, std::pair<T1, T2> interval) // returns false if there is overflow
+{
+    int size;
+
+    switch(datatype.length())
+    {
+        case 5 : size = sizeof(short); break;
+        case 3 : size = sizeof(int); break;
+        case 4 : size = sizeof(long); break;
+        case 9 : size = sizeof(long long); break;
+        case 14 : size = sizeof(unsigned short); break;
+        case 12 : size = sizeof(unsigned int); break;
+        case 13 : size = sizeof(unsigned long); break;
+        case 18 : size = sizeof(unsigned long long); break;
+    }
+
+    if(datatype.length() > 10)
+    {
+        return intervalCompare(std::make_pair(0, pow(2, size*8) -1), interval);
+    }
+    else
+    {
+        return intervalCompare(std::make_pair(pow(2,size*8)*-1, pow(2,size*8)-1), interval);
+    }
 }
