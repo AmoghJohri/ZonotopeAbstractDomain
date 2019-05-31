@@ -1,152 +1,51 @@
-#include "Zonotope.hh"
-#include "SecondaryFunctions.cpp"
+#include "Domains/Zonotope/Zonotope.hh"
 
-Zonotope::Zonotope(){};
-
-StackValue* Zonotope::topStackValue() // returns a pointer to a TOP stack valu
-{
-    StackValue* s = new StackValue;
-    s->varName = "TOP";
-    s->flag = s_TOP;
-    return s;
+Zonotope::Zonotope(clang::CompilerInstance* ci):AbstractDomain(ci)
+{  
 }
 
-StackValue* Zonotope::botStackValue() // returns a pointer to the BOT stack value
-{
-    StackValue* s = new StackValue;
-    s->varName = "BOT";
-    s->flag = s_BOT;
-    return s;
+Zonotope::Zonotope(c_safe::CAnalyzerManager* manager):AbstractDomain(manager)
+{  
+    std::cout << "Zonotope Constructor" << std::endl;
 }
 
-bool Zonotope::isTopStackValue(StackValue* s) // checks for a pointer whether it points to a TOP stack value
+bool Zonotope::isTopStackValue(ZonotopeStackValue* s) // checks for a pointer whether it points to a TOP stack value
 {
     if(s->flag == s_TOP)
         return true;
     return false;
 }
 
-bool Zonotope::isBotStackValue(StackValue* s) // checks for a pointer whether it ponits to a BOT stack value
+bool Zonotope::isBotStackValue(ZonotopeStackValue* s) // checks for a pointer whether it ponits to a BOT stack value
 {
     if(s->flag == s_BOT)
         return true;
     return false;
 }
 
-// COPY FUNCTIONS //
-
-StackValue* Zonotope::copyStackValue(StackValue* s) // takes a stack value, copies it and returns a pointer to the copy
+AbstractValue* Zonotope::topValue() // returns a pointer to the top abstract value
 {
-    StackValue* o = new StackValue;
-    o->varName = s->varName;
-    o->lv = s->lv;
-    o->varPos = s->varPos;
-    o->flag = s->flag;
-
-    std::vector<std::pair<std::string, double>>::iterator itr;
-    for(itr = s->centralVector.begin(); itr != s->centralVector.end(); ++itr)
-        o->centralVector.push_back(*itr);
-    for(itr = s->perturbedVector.begin(); itr != s->perturbedVector.end(); ++itr)
-        o->perturbedVector.push_back(*itr);
-    return o;
-}
-
-AbstractValue* Zonotope::copyAbstractValue(AbstractValue* a) // copies the abstract value and returns a pointer to the copy
-{
-    AbstractValue* x = new AbstractValue;
-    x->affineSetName = a->affineSetName;
-    x->n = a->n;
-    x->m = a->m;
-    x->p = a->p;
-    x->flag = a->flag;
-    std::vector<std::pair<double,double>>::iterator itr;
-    for(itr = a->constraintOverCentralMatrix.begin(); itr != a->constraintOverCentralMatrix.end(); ++itr)
-        x->constraintOverCentralMatrix.push_back(*itr);
-    for(itr = a->constraintOverPerturbedMatrix.begin(); itr != a->constraintOverPerturbedMatrix.end(); ++itr)
-        x->constraintOverPerturbedMatrix.push_back(*itr);
-    x->centralMatrix = a->centralMatrix;
-    x->perturbedMatrix = a->perturbedMatrix;
-    std::map<std::string, StackValue*>::iterator itr2;
-    for(itr2 = a->affineSet.begin(); itr2 != a->affineSet.end(); ++itr2)
-    {
-        x->affineSet.insert(std::make_pair(itr2->first, copyStackValue(itr2->second)));
-    }
-    return x;
-}
-
-// PRINT FUNCTIONS //
-void Zonotope::printStackValue(std::string  s, AbstractValue* abstractValue) // takes a variable name, searches for a stack-value with similar name in the abstract-value and pretty-prints the required stack-value
-{
-
-    std::map<std::string, StackValue*>::iterator itr; // iterator to iterate through the map which has the stack_values saved over it   
-
-    // looks in the affine_set for the required variable on the basis of name
-    for(itr = abstractValue->affineSet.begin(); itr != abstractValue->affineSet.end(); ++itr)
-    {
-        if((itr->second)->varName.compare(s) == 0)
-            break;
-    }
-
-     //if the variable is not present in the affine-set, then it prints TOP as for a variable which is not available has no constraints
-    if(itr == abstractValue->affineSet.end())
-        std::cout << "TOP" << std::endl;
+    ZonotopeAbstractValue *top = new ZonotopeAbstractValue;
+    top->flag = a_TOP;
     
-    else if((itr->second)->flag == s_TOP) // checks if the variable is a TOP
-        std::cout << "TOP" << std::endl;
-    
-    else if((itr->second)->flag == s_BOT) // checks if the variable is a BOT
-        std::cout << "BOT" << std::endl;
-    
-    // if a variable-of the name that is being searched for exists in the affine-set and it is not a TOP or a BOT then,
-    else 
-    {
-        int pos = (itr->second)->varPos; // the col. of the matrices where the variable is present
+    // Initialize the required  fields to make it an abstract value with no constraints.
 
-        std::cout << (itr->second)->varName << " = "; // prints out the name of the variable
-
-        std::cout << abstractValue->centralMatrix(0,pos); // prints the central-term of the variable
-
-        // loop to print out the central noise-terms
-        for(int counter = 1; counter < (abstractValue->centralMatrix).n_rows; counter++)
-        {
-            std::cout << " + " << abstractValue->centralMatrix(counter,pos) << "e" << counter;
-        }
-
-        // loop to print out the perturbed noise-terms
-        for(int counter = 0; counter < (abstractValue->perturbedMatrix).n_rows; counter++)
-        {
-            std::cout << " + " << abstractValue->perturbedMatrix(counter,pos) << "n" << counter+1;
-        }
-    }
+    return top;
 }
 
-void Zonotope::printStackValue(StackValue* stackValue) // pretty-prints a stack value into its affine form
+AbstractValue* Zonotope::botValue() // returns a pointer to the bot abstract value
 {
-    if(stackValue->lv == LITERAL) // if the stack value is a literal
-        std::cout << stackValue->varName << " = " <<  stackValue->litValue << std::endl;
-    else
-    {
-        if(stackValue->flag == s_TOP) // prints TOP if the stack value corresponds to a TOP stack value
-            std::cout << "TOP" << std::endl;
-        else if(stackValue->flag == s_BOT) // rints BOT if the stack value corresponds to a BOT stack value
-            std::cout << "BOT" << std::endl;
-        else // if the stack value is niether a TOP or a BOT
-        {
-            stackValue->manage(); // sorting the vectors in the stackValue 
+    ZonotopeAbstractValue *bot = new ZonotopeAbstractValue;
+    bot->flag = a_BOT;
+    // Initialize the required  fields to make it an abstract value with unsatisfiable constraints.
 
-            // printing directly through vectors
-            std::cout << stackValue->varName << " = " << stackValue->centralVector[0].second; // printing the central stackvalue
-            for(int counter = 1; counter < stackValue->centralVector.size(); counter++) // printing the central noise terms
-                std::cout << " + " << stackValue->centralVector[counter].second << "e" << stackValue->centralVector[counter].first;
-            for(int counter = 0; counter < stackValue->perturbedVector.size(); counter++) // printing the perturved noise terms
-                std::cout << " + " << stackValue->perturbedVector[counter].second << "n" << stackValue->perturbedVector[counter].first;
-            std::cout << std::endl;
-        }
-    }
+    return bot;
 }
 
-void Zonotope::printAbstractValue(AbstractValue* currentAbstractValue) // prints the entire abstract-value i.e. all the data-structures it has at a given program point
+void Zonotope::printAbstractValue(AbstractValue* abstract_value) // pretty prints the abstract value
 {
+    ZonotopeAbstractValue *currentAbstractValue = (ZonotopeAbstractValue*) abstract_value;
+    // Pretty-print abs_value.
     std::cout << "///////////////////////////////////////////// REPORT ///////////////////////////////////////////////" << std::endl << std::endl;
 
     // cheks if the affine-set is a TOP of a BOT
@@ -190,39 +89,175 @@ void Zonotope::printAbstractValue(AbstractValue* currentAbstractValue) // prints
     std::cout << "Number of Perturbed Noise Symbols are : " << currentAbstractValue->m << std::endl; // prints the number of perturbed noise symbols
 
     // prints all the stackvariables in the affine-set in their affine forms
-    std::map<std::string, StackValue*>::iterator itr2; // sorting the vectors in the stack value
+    std::map<std::string, ZonotopeStackValue*>::iterator itr2; // sorting the vectors in the stack value
     for(itr2 = (currentAbstractValue->affineSet).begin(); itr2 != (currentAbstractValue->affineSet).end(); ++itr2)
     {
-        itr2->second->manage();
+        std::cout << itr2->first << " = ";
         this->printStackValue((itr2->second));
+        std::cout << "Concretized Value = [" << concretize(itr2->second, currentAbstractValue).first << " , " << concretize(itr2->second, currentAbstractValue).second << "] ";
+        std::cout << std::endl << std::endl;
     }
 
     std::cout << "//////////////////////////////////////////////////////////////////////////////////////////////////////" << std::endl << std::endl;
-}
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-// takes a string, a double and the current abstract value and outputs a stackvalue of the provided name with the provided literal value, does nothing of the abstractvalue as of now
-StackValue* getStackValueOfLiteral(std::string type, double value, AbstractValue* currentAbstractValue) // ADD APRON FEATURES
+}
+
+void Zonotope::printStackValue(ZonotopeStackValue* stackValue) // pretty-prints a stack value into its affine form
 {
-    // the name of the literal is stored as string denoting its position in the matrix
+    if(stackValue->flag == s_TOP) // prints TOP if the stack value corresponds to a TOP stack value
+        std::cout << "TOP" << std::endl;
+    else if(stackValue->flag == s_BOT) // rints BOT if the stack value corresponds to a BOT stack value
+        std::cout << "BOT" << std::endl;
+    else // if the stack value is niether a TOP or a BOT
+    {
+        // printing directly through vectors
+        if(stackValue->centralVector.find("0") != stackValue->centralVector.end())
+            stackValue->centralVector["0"]; // printing the central stackvalue
+        std::map<std::string, double>::iterator itr; // printing the central noise terms
+        for(itr = stackValue->centralVector.begin(); itr!= stackValue->centralVector.end(); ++itr)
+            std::cout << " + " << itr->second << "e" << itr->first;
+        for(itr = stackValue->perturbedVector.begin(); itr!= stackValue->perturbedVector.end(); ++itr)// printing the perturved noise terms
+            std::cout << " + " << itr->second << "n" << itr->first;
+        std::cout << std::endl;
+    }
+}
+ZonotopeStackValue* Zonotope::copyStackValue(ZonotopeStackValue* s) // takes a stack value, copies it and returns a pointer to the copy
+{
+    // copies s into o
+
+    ZonotopeStackValue* o = new ZonotopeStackValue;
+    o->varName = s->varName;
+    o->varPos = s->varPos;
+    o->flag = s->flag;
+
+    std::map<std::string, double>::iterator itr;
+    for(itr = s->centralVector.begin(); itr != s->centralVector.end(); ++itr)
+        o->centralVector.insert(*itr);
+    for(itr = s->perturbedVector.begin(); itr != s->perturbedVector.end(); ++itr)
+        o->perturbedVector.insert(*itr);
+    return o;
+}
+
+
+AbstractValue* Zonotope::copyAbstractValue(AbstractValue* abstract_value) // makes a copy of the abstract value and returns a pointer to the copy
+{
+    ZonotopeAbstractValue *a = (ZonotopeAbstractValue*) abstract_value;
+    ZonotopeAbstractValue *x = new ZonotopeAbstractValue;
+
+    // DeepCopy a into xsss
+    x->affineSetName = a->affineSetName;
+    x->n = a->n;
+    x->m = a->m;
+    x->p = a->p;
+    x->flag = a->flag;
+    std::vector<std::pair<double,double>>::iterator itr;
+    for(itr = a->constraintOverCentralMatrix.begin(); itr != a->constraintOverCentralMatrix.end(); ++itr)
+        x->constraintOverCentralMatrix.push_back(*itr);
+    for(itr = a->constraintOverPerturbedMatrix.begin(); itr != a->constraintOverPerturbedMatrix.end(); ++itr)
+        x->constraintOverPerturbedMatrix.push_back(*itr);
+    x->centralMatrix = a->centralMatrix;
+    x->perturbedMatrix = a->perturbedMatrix;
+    // std::map<std::string, ZonotopeStackValue*>::iterator itr2;
+    for(auto itr2 = a->affineSet.begin(); itr2 != a->affineSet.end(); ++itr2)
+    {
+        x->affineSet.insert(std::make_pair(itr2->first, copyStackValue(itr2->second)));
+    }
+    return x;
+}
+
+AbstractValue* Zonotope::meet(AbstractValue* abstract_value_1, AbstractValue* abstract_value_2)
+{
+    ZonotopeAbstractValue *op1 = (ZonotopeAbstractValue*) abstract_value_1;
+    ZonotopeAbstractValue *op2 = (ZonotopeAbstractValue*) abstract_value_2;
+    ZonotopeAbstractValue *result = new ZonotopeAbstractValue;
+
+    // Do meet operation on op1 and op2 to get result.
+
+    return result;
+}
+
+AbstractValue* Zonotope::join(AbstractValue* abstract_value_1, AbstractValue* abstract_value_2)
+{
+    ZonotopeAbstractValue *op1 = (ZonotopeAbstractValue*) abstract_value_1;
+    ZonotopeAbstractValue *op2 = (ZonotopeAbstractValue*) abstract_value_2;
+    ZonotopeAbstractValue *result = new ZonotopeAbstractValue;
+
+    // Do join operation on op1 and op2 to get result.
+
+    return result;
+}
+
+AbstractValue* Zonotope::widen(AbstractValue* abstract_value_1, AbstractValue* abstract_value_2)
+{
+    ZonotopeAbstractValue *op1 = (ZonotopeAbstractValue*) abstract_value_1;
+    ZonotopeAbstractValue *op2 = (ZonotopeAbstractValue*) abstract_value_2;
+    ZonotopeAbstractValue *result = new ZonotopeAbstractValue;
+
+    // Do widen operation on op1 and op2 to get result.
+
+    return result;
+}
+
+
+LatticeCompare Zonotope::compare(AbstractValue* abstract_value_1, AbstractValue* abstract_value_2)
+{
+    ZonotopeAbstractValue *op1 = (ZonotopeAbstractValue*) abstract_value_1;
+    ZonotopeAbstractValue *op2 = (ZonotopeAbstractValue*) abstract_value_2;
+
+    // Compare op1 and op2 and return the result.
+    // if op1 == op2, return EQ
+    // if op1 > op2, return GT
+    // if op1 < op2, return LT
+    // if op1 and op2 are uncomparable, return UC
+
+    return UC;
+}
+
+AbstractValue* Zonotope::assignStackValue(std::string variable_name, std::string variable_type, StackValue* rhs_stack_value, AbstractValue* current_abstract_value)
+{
+    ZonotopeStackValue *rhs = (ZonotopeStackValue*) rhs_stack_value;
+    ZonotopeAbstractValue *abstract_value = (ZonotopeAbstractValue*) copyAbstractValue(current_abstract_value);
+
+    rhs->varName = variable_name;
+
+    // Add the constraint variable_name = rhs, to abstract_value.
+    if(isTopStackValue(rhs)) //    printStackValue(rhs); if the stack value is a top, it removes it from the affine-set (this is the same as the stack value having no constraints over it)
+    {
+        abstract_value->affineSet.erase(variable_name);
+        return abstract_value;
+    }
+    else if(isBotStackValue(rhs)) // if the stack value if BOT, it returns a BOT abstract value
+    {
+        delete abstract_value;
+        return botValue();
+    }
+    // otherwise, adds the stack value into the abstract value
+    abstract_value = addVariableToAffineSet(rhs,abstract_value); // adding to the number of variables
+    abstract_value->affineSet[variable_name] = rhs;
+    abstract_value->flag = a_NONE;
+    return abstract_value;
+}
+
+StackValue* Zonotope::getStackValueOfLiteral(std::string type, double value, AbstractValue* current_abstract_value)
+{
+    ZonotopeStackValue *result = new ZonotopeStackValue;
+    ZonotopeAbstractValue *abstract_value = (ZonotopeAbstractValue*) current_abstract_value;
+
+    // result = stackvalue of the value
+        // the name of the literal is stored as string denoting its position in the matrix
 
     // makes a new stack value for the appropriate literal and outputs the same
     if(strcmp(type.c_str(), "int") == 0) // if the output type is a string
     {
-        StackValue *output = new StackValue;
-        output->varName = "literal";
-        output->lv = LITERAL;
-        output->litValue = (int)value;
+        ZonotopeStackValue *output = new ZonotopeStackValue;
+        output->centralVector["0"] = (int)value;
         output->varPos = -2;
         output->flag = s_NONE;
         return output;
     }
     else if(strcmp(type.c_str(), "real") == 0) // if the output type is a double
     {
-        StackValue *output = new StackValue;
-        output->varName = "literal";
-        output->lv = LITERAL;
-        output->litValue = value;
+        ZonotopeStackValue *output = new ZonotopeStackValue;
         output->varPos = -2;
         output->flag = s_NONE;
         return output;
@@ -232,569 +267,160 @@ StackValue* getStackValueOfLiteral(std::string type, double value, AbstractValue
         std::cout << "Unknown Type" << type << std::endl;
         assert(false);
     }
+
+    return result;
 }
 
-// fetches the stack value of the variable from the affine-set and returns a pointer to an identical StackValue but not the same as in the affine-set
-StackValue* Zonotope::getStackValueOfVariable(std::string variableName, std::string variableType, AbstractValue* currentAbstractValue) // ADD APRON FEATURES
+
+
+StackValue* Zonotope::getStackValueOfVariable(std::string variableName, std::string variable_type, AbstractValue* current_abstract_value)
 {
+    ZonotopeStackValue *s = new ZonotopeStackValue;
+    ZonotopeAbstractValue *currentAbstractValue = (ZonotopeAbstractValue*) current_abstract_value;
 
-    StackValue* s = new StackValue;
-
-    std::map<std::string, StackValue*>::iterator itr; // iterator for the affine set
+    // result = stackvalue of the variable.
 
     // looks in the affine_set for the required variable
-    for(itr = currentAbstractValue->affineSet.begin(); itr != currentAbstractValue->affineSet.end(); ++itr)
-    {
-        if((itr->second)->varName.compare(variableName) == 0)
-            break;
-    }
     // if the variable is not present, returns TOP
+    auto itr = currentAbstractValue->affineSet.find(variableName);
     if(itr == currentAbstractValue->affineSet.end())
-        return (this->topStackValue());
+    {
+        s->flag = s_TOP;
+        return s;
+    }
     else
     {
-        s->varName = itr->second->varName;
-        s->lv = VARIABLE;
         s->varPos = itr->second->varPos;
         s->flag = itr->second->flag;
         s->centralVector = itr->second->centralVector;
         s->perturbedVector = itr->second->perturbedVector;
         return s;
     }
+
 }
 
-// left for later
-AbstractValue* Zonotope::assignStackValue(std::string variableName, std::string variableType, StackValue* rhsStackValue, AbstractValue* currentAbstractValue)
+StackValue* Zonotope::evaluateBinaryOperation(std::string opcode, std::string return_type, StackValue* lhs_stack_value, StackValue* rhs_stack_value, AbstractValue* current_abstract_value)
 {
-    StackValue* s = new StackValue;
-    s = rhsStackValue;
-    s->varName = variableName;
-    this->addCustomVariable(s, currentAbstractValue);
-    return currentAbstractValue;
+    ZonotopeStackValue *op1 = (ZonotopeStackValue*) lhs_stack_value;
+    ZonotopeStackValue *op2 = (ZonotopeStackValue*) rhs_stack_value;
+    ZonotopeStackValue *result = new ZonotopeStackValue;
+    ZonotopeAbstractValue *abstract_value = (ZonotopeAbstractValue*) current_abstract_value;
+
+    // Do binary operation on op1 and op2 to get result
+    // Includes all binary arithematic operations.
+
+    return result;
 }
 
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-LatticeCompare Zonotope::compare(AbstractValue* abs1, AbstractValue* abs2) // compares two affine-sets and tells the ordered relation between then
-{ 
-    // checking for TOP and BOT combinations
-    if((abs1->flag != a_NONE) || (abs2->flag != a_NONE))
-    {
-        if(abs2->flag == a_TOP)
-            return LT;
-        else if(abs2->flag == a_BOT)
-            return GT;
-        else if(abs1->flag == a_TOP)
-            return LT;
-        else if(abs1->flag == a_BOT)
-            return GT;
-    }
-
-    // if neither of the two affine sets are TOP or BOT
-
-    int max_col = abs(abs1->p - abs2->p); // difference between the number of variables
-    int max_row_C = abs(abs1->n - abs2->n); // differnce between the number of central noise symbols
-    int max_row_P = abs(abs1->m - abs2->m); // difference between the number of perturbed noise symbols
-
-    // copies of the central Matrices
-    arma::Mat<double> Ca1 = abs1->centralMatrix; 
-    arma::Mat<double> Ca2 = abs2->centralMatrix;
-
-    // copies of the perturbed Matrices
-    arma::Mat<double> Pa1 = abs1->perturbedMatrix;
-    arma::Mat<double> Pa2 = abs2->perturbedMatrix;
-
-    // copies for the central contraint vectors
-    std::vector<std::pair<double,double>> Phi1CX = abs1->constraintOverCentralMatrix;
-    std::vector<std::pair<double,double>> Phi2CX = abs2->constraintOverCentralMatrix;
-
-    // copes for the perturbed constraint vectors
-    std::vector<std::pair<double,double>> Phi1PX = abs1->constraintOverPerturbedMatrix;
-    std::vector<std::pair<double,double>> Phi2PX = abs2->constraintOverPerturbedMatrix;
-
-    // making the number of cols equal in all the matrices
-    if(max_col != 0)
-    {
-        if(Ca1.n_cols < max_col + abs2->p)
-        {
-            Ca1.insert_cols(abs1->p, max_col);
-            Pa1.insert_cols(abs1->p, max_col);
-        }
-        else if(Ca2.n_cols < max_col + abs1->p)
-        {
-            Ca2.insert_cols(abs2->p, max_col);
-            Pa2.insert_cols(abs2->p, max_col);
-        }
-
-
-        // making the number of rows in Central matrix equal
-        if(Ca1.n_rows < max_row_C + abs2->n)
-        {
-            Ca1.insert_rows(abs1->p, max_row_C);
-            Phi1CX.insert(Phi1CX.end(), std::make_pair(-1.0,1.0));
-        }
-        else if(Ca2.n_rows < max_row_C + abs1->n)
-        {
-            Ca2.insert_rows(abs2->n, max_row_C);
-            Phi2CX.insert(Phi2CX.end(), std::make_pair(-1.0,1.0));
-        }
-
-        // making the number of rows in Perturbed matrix equal
-        if(Pa1.n_rows < max_row_P + abs1->m)
-        {
-            Pa1.insert_rows(abs1->m, max_row_P);
-            Phi1PX.insert(Phi1PX.end(), std::make_pair(-1.0,1.0));
-        }
-        else if(Pa2.n_rows < max_row_P, abs1->m)
-        {
-            Pa2.insert_rows(abs2->m, max_row_P);
-            Phi2PX.insert(Phi2PX.end(), std::make_pair(-1.0,1.0));
-        }
-    }
-    
-    
-
-    arma::arma_rng::set_seed_random(); // in order to generate random vectors
-    arma::Col<double> u; // random vector
-
-    // checking if abs1 <= abs2;
-    int counter = 0; // to control the number of checks
-    int tag = 0; // to see if the check fails
-    while (counter < 100)
-    {
-        // checking for the constraint domain
-        if(counter == 0)
-        {
-            for(int c = 0; c < Phi1CX.size(); c++)
-            {
-                if(!intervalCompare(Phi2CX[c], Phi1CX[c]))
-                {
-                    tag = 1;
-                    break;
-                }
-            }
-            for(int c = 0; c < Phi1PX.size(); c++)
-            {
-                if(!intervalCompare(Phi2PX[c], Phi1PX[c]))
-                {
-                    tag = 1;
-                    break;
-                }
-            }
-            if(tag == 1)
-                break;
-        }
-
-        u = arma::randn(Ca1.n_cols);
-
-        arma::Col<double> v = (Ca2 - Ca1)*u;
-        for(int i = 0; i < Phi1CX.size(); i++)
-            v(i) = v(i)* (std::max(abs(Phi1CX[i].first), abs(Phi1CX[i].second)));
-        double x = arma::accu(arma::abs(v));
-
-
-        double y = 0;
-        if(Pa2.n_rows != 0)
-            v = Pa2*u;
-            for(int i = 0; i < Phi2PX.size(); i++)
-                v(i) = v(i)* (std::max(abs(Phi2PX[i].first), abs(Phi2PX[i].second)));
-            y = arma::accu(arma::abs(v));
-        
-        
-        double z = 0;
-        if(Pa1.n_rows != 0)
-            v = Pa1*u;
-            for(int i = 0; i < Phi1PX.size(); i++)
-                v(i) = v(i)* (std::max(abs(Phi1PX[i].first), abs(Phi1PX[i].second)));
-            z = arma::accu(arma::abs(v));
-        x = x + z - y;
-
-        if(x > 0)
-        {
-            tag = 1;
-            break;
-        }
-        counter = counter + 1;
-    }
-    if(tag == 0)
-        return LT;
-    
-    // checking if abs2 <= abs1
-    counter = 0;
-    tag = 0;
-    while (counter < 100)
-    {
-
-        // checking for the constraint domain
-        if(counter == 0)
-        {
-            for(int c = 0; c < Phi2CX.size(); c++)
-            {
-                if(!intervalCompare(Phi1CX[c], Phi2CX[c]))
-                {
-                    tag = 1;
-                    break;
-                }
-            }
-            for(int c = 0; c < Phi2PX.size(); c++)
-            {
-                if(!intervalCompare(Phi1PX[c], Phi2PX[c]))
-                {
-                    tag = 1;
-                    break;
-                }
-            }
-            if(tag == 1)
-                break;
-        }
-
-        u = arma::randn(Ca1.n_cols);
-
-        arma::Col<double> v = (Ca2 - Ca1)*u;
-        for(int i = 0; i < Phi2CX.size(); i++)
-            v(i) = v(i)* (std::max(abs(Phi2CX[i].first), abs(Phi2CX[i].second)));
-        double x = arma::accu(arma::abs(v));
-
-
-        double y = 0;
-        if(Pa2.n_rows != 0)
-            v = Pa2*u;
-            for(int i = 0; i < Phi2PX.size(); i++)
-                v(i) = v(i)* (std::max(abs(Phi2PX[i].first), abs(Phi2PX[i].second)));
-            y = arma::accu(arma::abs(v));
-        
-        
-        double z = 0;
-        if(Pa1.n_rows != 0)
-            v = Pa1*u;
-            for(int i = 0; i < Phi1PX.size(); i++)
-                v(i) = v(i)* (std::max(abs(Phi1PX[i].first), abs(Phi1PX[i].second)));
-            z = arma::accu(arma::abs(v));
-        x = x - z  + y;
-       
-        if(x > 0)
-        {
-            tag = 1;
-            break;
-        }
-        counter = counter + 1;
-    }
-    if(tag == 0)
-        return GT;
-
-    return UC;
-}
-
-AbstractValue* Zonotope::join(AbstractValue* X, AbstractValue* Y) // joins two affine-sets and returns the joined affine-set
+StackValue* Zonotope::evaluateUnaryOperation(std::string opcode, std::string return_type, StackValue* stack_value, AbstractValue* current_abstract_value)
 {
-    // checking for TOP and BOT combinations
-    if((X->flag == a_TOP) || (Y->flag == a_TOP))
-        return X;
-    else if(X->flag == a_BOT)
-        return Y;
-    else if(Y->flag == a_BOT)
-        return X;
-    
-    // if neither are TOP or BOT
-    
-    // initiliazing the new affine set
-    AbstractValue* Z = new AbstractValue;
-    Z->affineSetName = "Z";
-    Z->n = std::max(X->n, Y->n);
-    Z->p = std::max(X->p, Y->p);
-    Z->m = std::max(X->m, Y->m);
-    Z->flag = a_NONE;
-    Z->centralMatrix = arma::zeros(Z->n,Z->p);
-    Z->perturbedMatrix = arma::zeros(Z->m,Z->p);
-    // HAVE A SECOND LOOK AT THIS
-    for(int i = 0; i < Z->n; i++)
-        Z->constraintOverCentralMatrix.push_back(std::make_pair(-1,1));
-    for(int i = 0; i < Z->m; i++)
-        Z->constraintOverPerturbedMatrix.push_back(std::make_pair(-1,1));
-    ////////////
-    // not mapping the new affine-set to stack_values
+    ZonotopeStackValue *operand = (ZonotopeStackValue*) stack_value;
+    ZonotopeStackValue *result = new ZonotopeStackValue;
+    ZonotopeAbstractValue *abstract_value = (ZonotopeAbstractValue*) current_abstract_value;
 
-    // setting the rest of the matrices to be dimensionally equal
-    int max_col = abs(X->p - Y->p); // difference between the number of variables
-    int max_row_C = abs(X->n - Y->n); // differnce between the number of central noise symbols
-    int max_row_P = abs(X->m - Y->m); // difference between the number of perturbed noise symbols
+    // Do unary operation on operand to get resultstd::pair<AbstractValue*, AbstractValue*> assumeConstraint(std::string opcode, StackValue* lhs_stack_value, StackValue* rhs_stack_value, AbstractValue* current_abstract_value)
+    // Includes all unary arithematic operations.
 
-    // making copies of the matrices required to join
-    arma::Mat<double> Ca1 = X->centralMatrix;
-    arma::Mat<double> Ca2 = Y->centralMatrix;
-
-    arma::Mat<double> Pa1 = X->perturbedMatrix;
-    arma::Mat<double> Pa2 = Y->perturbedMatrix;
-
-    // making the number of cols equal in all the matrices
-    if(Ca1.n_cols < max_col + Y->p)
-    {
-        Ca1.insert_cols(X->p, max_col);
-        Pa1.insert_cols(X->p, max_col);
-    }
-    else if(Ca2.n_cols < max_col + X->p)
-    {
-        Ca2.insert_cols(Y->p, max_col);
-        Pa2.insert_cols(Y->p, max_col);
-    }
-
-
-    // making the number of rows in Central matrix equal
-    if(Ca1.n_rows < max_row_C + Y->n)
-    {
-        Ca1.insert_rows(X->p, max_row_C);
-    }
-    else if(Ca2.n_rows < max_row_C + X->n)
-    {
-        Ca2.insert_rows(Y->n, max_row_C);
-    }
-    
-    // making the number of rows in Perturbed matrix equal
-    if(Pa1.n_rows < max_row_P + X->m)
-    {
-        Pa1.insert_rows(X->m, max_row_P);
-    }
-    else if(Pa2.n_rows < max_row_P, X->m)
-    {
-        Pa2.insert_rows(Y->m, max_row_P);
-    }
-    //
-
-    // Need to Join (Ca1 + Pa1) and (Ca2 + Pa2)
-
-    Z->perturbedMatrix.insert_rows(Z->m,Z->p);
-
-
-    for(int k = 0; k < Z->p ;k++) // over all the variables
-    {
-        Z->centralMatrix(0,k) = (intervalJoin(concretize(k,X),concretize(k,Y)).first + intervalJoin(concretize(k,X),concretize(k,Y)).second)/2; // setting the central value
-
-        for(int i = 1; i < Z->n; i++) // setting the central-noise symbols
-            Z->centralMatrix(i,k) = argmin(Ca1(i,k),Ca2(i,k));
-
-        for(int i = 0; i < Z->m; i++) // setting the perturbed-noise symbols
-            Z->perturbedMatrix(i,k) = argmin(Pa1(i,k),Pa2(i,k));
-        
-        // adding the perturbed noise symbol
-        Z->perturbedMatrix(Z->m+k,k) = intervalJoin(concretize(k,X),concretize(k,Y)).second - Z->centralMatrix(0,k);
-        double aux1 = 0;
-        double aux2 = 0;
-        for(int i = 1; i < Z->n; i++)
-            aux1 = aux1 + abs(Z->centralMatrix(i,k));
-        for(int i = 0; i < Z->m; i++)
-            aux2 = aux2 + abs(Z->perturbedMatrix(i,k));
-        Z->perturbedMatrix(Z->m+k,k) = Z->perturbedMatrix(Z->m+k,k) + (-aux1);
-        Z->perturbedMatrix(Z->m+k,k) = Z->perturbedMatrix(Z->m+k,k) + (-aux2);
-
-        Z->affineSet.insert(std::make_pair(std::to_string(k), getStackValue(Z,k))); // adds the variable pointer into the affine_set
-    }
-    Z->perturbedMatrix = Z->perturbedMatrix(arma::span(0,Z->m-1), arma::span(0,Z->p-1)); // removing extra rows
-    std::map<std::string, StackValue*>::iterator it; // sorting the inner vectors
-    for(it = Z->affineSet.begin(); it != Z->affineSet.end(); ++it)
-        (it->second)->manage();
-    return Z;
+    return result;
 }
 
-// HAVE TO IMPLEMENT MEET FUNCTION
-// NO PROPER MEET FUNCTION NEED TO MAKE ADJUSTMENTS
-
-
-
-StackValue* Zonotope::evaluateBinaryOperation(std::string opcode, std::string return_type, StackValue* lhs_stack_value, StackValue* rhs_stack_value, AbstractValue* currentAbstractValue)
+StackValue* Zonotope::castStackValue(std::string src_type, std::string dest_type, StackValue* stack_value, AbstractValue* current_abstract_value)
 {
-    // checks whether the two numbers are bot or top
-    if((isBotStackValue(lhs_stack_value) || isBotStackValue(rhs_stack_value)))
-        return botStackValue();
-    else if((isTopStackValue(lhs_stack_value) || isTopStackValue(rhs_stack_value)))
-        return topStackValue();
+    ZonotopeStackValue *operand = (ZonotopeStackValue*) stack_value;
+    ZonotopeStackValue *result = new ZonotopeStackValue;
+    ZonotopeAbstractValue *abstract_value = (ZonotopeAbstractValue*) current_abstract_value;
 
-    if(strcmp(opcode.c_str(),"+") == 0) // adds two number and stores it into a different variable
+    // Do cast operation on operand to get result
+    // Includes all unary arithematic operations.
+    if(src_type == dest_type)
     {
-        StackValue* s = new StackValue; // initiliazing the new variable
-        s->varName = std::to_string(globalCounter); globalCounter = globalCounter + 1; // setting the name of the variable
-        s->flag = s_NONE; // setting the flag to show it is not a TOP or a BOT value
-        if(rhs_stack_value->lv == LITERAL && lhs_stack_value->lv == LITERAL) // if both variables are literals
-            s->litValue = rhs_stack_value->litValue + lhs_stack_value->litValue; // adding the literal values
-        else
-        {
-            // sorting both the stack values
-            rhs_stack_value->manage();
-            lhs_stack_value->manage();
-
-            std::vector<std::pair<std::string, double>>::iterator itr; // iterating over the central vector
-            std::vector<std::pair<std::string, double>>::iterator itr2;
-
-            // setting the central vector for the output
-            for(itr = rhs_stack_value->centralVector.begin(); itr != rhs_stack_value->centralVector.end(); ++itr)
-            {
-                s->centralVector.push_back(*itr);
-            }
-            // adding the lhs stack value
-            itr = s->centralVector.begin();
-            
-            std::vector<std::pair<std::string, double>> temp;
-            int tag = 0;
-            for(itr2 = lhs_stack_value->centralVector.begin(); itr2 != lhs_stack_value->centralVector.end(); ++itr2) // n^2 algorithm, MAKE IT BETTER
-            {
-                tag = 0;
-                for(itr = s->centralVector.begin(); itr != s->centralVector.end(); ++itr)
-                {
-                    if(std::stoi(itr->first) == std::stoi(itr2->first))
-                    {
-                        temp.push_back(std::make_pair(itr->first, itr->second + itr2->second));
-                        s->centralVector.erase(itr);
-                        tag = 1;
-                        break;
-                    }
-                }
-                if(tag == 0)
-                    temp.push_back(*itr2);
-            }
-            for(itr = s->centralVector.begin(); itr != s->centralVector.end(); ++itr)
-            {
-                temp.push_back(*itr);
-            }
-            s->centralVector = temp;
-
-            // setting the perturbed vector for the output
-            for(itr = rhs_stack_value->perturbedVector.begin(); itr != rhs_stack_value->perturbedVector.end(); ++itr)
-            {
-                s->perturbedVector.push_back(*itr);
-            }
-            // adding the lhs stack value
-            itr = s->perturbedVector.begin();
-            
-            temp.clear();
-            tag = 0;
-            for(itr2 = lhs_stack_value->perturbedVector.begin(); itr2 != lhs_stack_value->perturbedVector.end(); ++itr2) // n^2 algorithm, MAKE IT BETTER
-            {
-                tag = 0;
-                for(itr = s->perturbedVector.begin(); itr != s->perturbedVector.end(); ++itr)
-                {
-                    if(std::stoi(itr->first) == std::stoi(itr2->first))
-                    {
-                        temp.push_back(std::make_pair(itr->first, itr->second + itr2->second));
-                        s->perturbedVector.erase(itr);
-                        tag = 1;
-                        break;
-                    }
-                }
-                if(tag == 0)
-                    temp.push_back(*itr2);
-            }
-            for(itr = s->perturbedVector.begin(); itr != s->perturbedVector.end(); ++itr)
-            {
-                temp.push_back(*itr);
-            }
-            s->perturbedVector = temp;
-        }
-        return s;
+        result = copyStackValue(operand);
     }
-    /*else if(strcmp(opcode.c_str(),"*") == 0)
+    return result;
+}
+
+std::pair<AbstractValue*, AbstractValue*> Zonotope::assumeConstraint(std::string opcode, StackValue* lhs_stack_value, StackValue* rhs_stack_value, AbstractValue* current_abstract_value)
+{
+    ZonotopeStackValue *lhs = (ZonotopeStackValue*) lhs_stack_value;
+    ZonotopeStackValue *rhs = (ZonotopeStackValue*) rhs_stack_value;
+    ZonotopeAbstractValue *result_true = (ZonotopeAbstractValue*) copyAbstractValue(current_abstract_value);
+    ZonotopeAbstractValue *result_false = (ZonotopeAbstractValue*) copyAbstractValue(current_abstract_value);
+
+    // Add the constraint lhs opcode rhs to result_true
+    // Add the constraint !(lhs opcode rhs) to result_false
+    
+    return std::make_pair<AbstractValue*, AbstractValue*>(result_true, result_false);
+}
+
+std::pair<double, double> Zonotope::concretize(ZonotopeStackValue* s, ZonotopeAbstractValue* a) // returns the concretized value of the stack value
+{
+    double ldev = 0;
+    double rdev = 0;
+
+    std::map<std::string,double>::iterator itr;
+
+    for(itr = s->centralVector.begin(); itr != s->centralVector.end(); ++itr)
     {
-        StackValue* temp = new StackValue;
-        temp->varName = std::to_string(globalCounter);
-        temp->flag = s_NONE;
-        globalCounter = globalCounter + 1;
-        if((lhs_stack_value->lv == VARIABLE) || (rhs_stack_value->lv == VARIABLE))
-            temp->lv = VARIABLE;
-        else{
-            temp->lv == LITERAL;
-            temp->concreteValue = std::make_pair((lhs_stack_value->concreteValue.first * rhs_stack_value->concreteValue.first), (lhs_stack_value->concreteValue.first * rhs_stack_value->concreteValue.first));
-            return temp;
-        }
-        if(lhs_stack_value->lv == LITERAL)
+        if(itr == s->centralVector.begin())
+            continue;
+        
+        if(itr->second > 0)
         {
-            for(int i = 0; i < rhs_stack_value->centralVector.size(); i++)
-                rhs_stack_value->centralVector[i].second = (rhs_stack_value->centralVector[i].second) * (lhs_stack_value->centralVector[0].second);
+            ldev = ldev + itr->second*a->constraintOverCentralMatrix[std::stoi(itr->first) - 1].first;
+            rdev = rdev + itr->second*a->constraintOverCentralMatrix[std::stoi(itr->first) - 1].second;
         }
-        else if(rhs_stack_value->lv == LITERAL)
+        else 
         {
-            for(int i = 0; i < lhs_stack_value->centralVector.size(); i++)
-                lhs_stack_value->centralVector[i].second = (lhs_stack_value->centralVector[i].second) * (rhs_stack_value->centralVector[0].second);
+            ldev = ldev + itr->second*a->constraintOverCentralMatrix[std::stoi(itr->first) - 1].second;
+            rdev = rdev + itr->second*a->constraintOverCentralMatrix[std::stoi(itr->first) - 1].first; 
         }
-        else
+    }
+
+    for(itr = s->perturbedVector.begin(); itr != s->perturbedVector.end(); ++itr)
+    {
+        if(itr->second > 0)
         {
-            // the case where both are variables
-            return lhs_stack_value;
+            ldev = ldev + itr->second*a->constraintOverPerturbedMatrix[std::stoi(itr->first) - 1].first;
+            rdev = rdev + itr->second*a->constraintOverPerturbedMatrix[std::stoi(itr->first) - 1].second;
         }
-    }*/
+        else 
+        {
+            ldev = ldev + itr->second*a->constraintOverPerturbedMatrix[std::stoi(itr->first) - 1].second;
+            rdev = rdev + itr->second*a->constraintOverPerturbedMatrix[std::stoi(itr->first) - 1].first; 
+        }
+    }
+    double x;
+    if(s->centralVector.find("0") != s->centralVector.end())
+        x = s->centralVector["0"];
     else
-        return lhs_stack_value;
+        x = 0;
+    return std::make_pair(x + ldev, x + rdev);
 }
 
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-// creates an empty affine set with name s
-AbstractValue Zonotope::createAffineSet(std::string s)
+ZonotopeAbstractValue* Zonotope::addVariableToAffineSet(ZonotopeStackValue* stValue, ZonotopeAbstractValue* abValue) // takes a pointer to a stack value and abstract value and adds the stack value to the affine set
 {
-    AbstractValue a = {
-        .affineSetName = s,
-        .n = 0,
-        .m = 0,
-        .p = 0,
-        .flag = a_TOP,
-        .centralMatrix = arma::zeros(0,0),
-        .perturbedMatrix = arma::zeros(0,0),
-    };
-    return a;
-}
-
-// adding custom intervals as variables
-AbstractValue* Zonotope::addCustomVariable(std::string s, std::pair<double,double> p, AbstractValue* currentAbstractValue) 
-{
-    // forming the new stack variable
-    StackValue* variable = new StackValue; // allocating memory
-    variable->varName = s; // setting its name
-    variable->lv = VARIABLE; // setting it as a variable
-    variable->varPos = currentAbstractValue->p; // setting it's position in the matrix
-    variable->flag = s_NONE; // setting it as a normal variable (neither TOP or BOT)
-    currentAbstractValue->affineSet.insert(std::make_pair(s, variable)); // adding it into the affine_set
-
-
-    // setting the abstract value
-    if(currentAbstractValue->n == 0)
-        currentAbstractValue->centralMatrix.insert_rows(0,2);
-    else
-        currentAbstractValue->centralMatrix.insert_rows(currentAbstractValue->n+1,1);
-    currentAbstractValue->centralMatrix.insert_cols(currentAbstractValue->p,1);
-
-    currentAbstractValue->centralMatrix(0, currentAbstractValue->p) = (p.first + p.second)/2;
-    variable->centralVector.push_back(std::make_pair("0", (p.first + p.second)/2));
-
-    currentAbstractValue->n = currentAbstractValue->n + 1;
-    currentAbstractValue->centralMatrix(currentAbstractValue->n, currentAbstractValue->p) = (p.second - p.first)/2;
-    variable->centralVector.push_back(std::make_pair(std::to_string(currentAbstractValue->n), (-p.first + p.second)/2));
-
-    currentAbstractValue->p = currentAbstractValue->p + 1;
-    currentAbstractValue->constraintOverCentralMatrix.push_back(std::make_pair(-1.0,1.0));
-    return currentAbstractValue;
-}
-
-AbstractValue* Zonotope::addCustomVariable(StackValue* stValue, AbstractValue* abValue) 
-{
-    // checking whether the stack value is a top or a bot
-    if(stValue->flag == s_TOP)
-        return abValue; // TOP value is the same as it not existing in the affine-set
-    if(stValue->flag == s_BOT)
-    {
-        abValue->flag = a_BOT; // turns the affine set to BOT and returns it
-        return abValue;
-    }
-
     // if stack value is neither a top or a bot
 
     // augmenting cols in the central and perturbed matrices
-    abValue->centralMatrix.insert_cols(abValue->p,1);
-    abValue->perturbedMatrix.insert_cols(abValue->p,1);
-
+    if(abValue->affineSet.find(stValue->varName) == abValue->affineSet.end()) // if the variable is not already present
+    {
+        abValue->centralMatrix.insert_cols(abValue->p,1);
+        abValue->perturbedMatrix.insert_cols(abValue->p,1);
+        stValue->varPos = abValue->p;
+    }
+    else
+    {
+        stValue->varPos = abValue->affineSet[stValue->varName]->varPos;
+    }
+    
+    
     // setting the central matrix
     // obtaining the highest degree of central noise symbol
     int max1 = 0;
-    for(int counter = 0; counter < stValue->centralVector.size(); counter++)
+    if(stValue->centralVector.rbegin() != stValue->centralVector.rend())
     {
-        if(std::stoi(stValue->centralVector[counter].first) > max1)
-            max1 = std::stoi(stValue->centralVector[counter].first);
+        if(std::stoi(stValue->centralVector.rbegin()->first) > max1)
+            max1 = std::stoi(stValue->centralVector.rbegin()->first);
     }
     // if there are noise symbols and the central matrix is not empty and noise symbols need to be added
     if(max1 > 0 && abValue->n != 0 && (max1 - abValue->n > 0))
@@ -808,27 +434,30 @@ AbstractValue* Zonotope::addCustomVariable(StackValue* stValue, AbstractValue* a
         abValue->centralMatrix.insert_rows(0, 1);
 
     // adding terms in the central matrix;
-    for(int counter = 0; counter < stValue->centralVector.size(); counter++)
+    for(auto itr = stValue->centralVector.begin(); itr != stValue->centralVector.end(); ++itr)
     {
-        abValue->centralMatrix(std::stoi(stValue->centralVector[counter].first),abValue->p) = stValue->centralVector[counter].second;
+        abValue->centralMatrix(std::stoi(itr->first),stValue->varPos) = itr->second;      
     }
     // augmenting the vector of constraints
+    int c = abValue->constraintOverCentralMatrix.size();
     if(abValue->centralMatrix.n_rows > abValue->n)
     {
         abValue->n = abValue->centralMatrix.n_rows;
-        for(int i = 0; i <= (abValue->constraintOverCentralMatrix.size() - abValue->n) + 1; i++)
-            abValue->constraintOverCentralMatrix.push_back(std::make_pair(-1,1));
+        for(int i = 0; i <= (c - abValue->n); i++)
+        {
+            abValue->constraintOverCentralMatrix.push_back(std::make_pair(-1,1)); 
+        }
     }
-
     // setting the perturbed matrix
     // obtaining the highest degree of perturbation noise symbol
     max1 = 0;
     // finding the max perturbed noise symbol
-    for(int counter = 0; counter < stValue->perturbedVector.size(); counter++)
+    if(stValue->perturbedVector.rbegin() != stValue->perturbedVector.rend())
     {
-        if(std::stoi(stValue->perturbedVector[counter].first) > max1)
-            max1 = std::stoi(stValue->perturbedVector[counter].first);
+        if(std::stoi(stValue->perturbedVector.rbegin()->first) > max1)
+            max1 = std::stoi(stValue->perturbedVector.rbegin()->first);
     }
+
 
     if(max1 > 0 && abValue->m != 0 && (max1 - abValue->m > 0))
         abValue->perturbedMatrix.insert_rows(abValue->m, max1 - abValue->m);
@@ -836,9 +465,9 @@ AbstractValue* Zonotope::addCustomVariable(StackValue* stValue, AbstractValue* a
     else if(max1 > 0 && abValue->m == 0 && (max1 - abValue->m > 0))
         abValue->perturbedMatrix.insert_rows(0, max1 - abValue->m);
 
-    for(int counter = 0; counter < stValue->perturbedVector.size(); counter++)
+    for(auto itr = stValue->perturbedVector.begin(); itr != stValue->perturbedVector.end(); ++itr)
     {
-        abValue->perturbedMatrix(std::stoi(stValue->perturbedVector[counter].first)-1,abValue->p) = stValue->perturbedVector[counter].second;
+        abValue->perturbedMatrix(std::stoi(itr->first)-1,stValue->varPos) = itr->second;
     }
     // augmenting the vector of constraints
     if(abValue->perturbedMatrix.n_rows > abValue->m)
@@ -848,209 +477,8 @@ AbstractValue* Zonotope::addCustomVariable(StackValue* stValue, AbstractValue* a
             abValue->constraintOverPerturbedMatrix.push_back(std::make_pair(-1,1));
     }
 
-
-
-
-
-    stValue->varPos = abValue->p;
     abValue->p = abValue->p + 1;
-    abValue->affineSet.insert(make_pair(stValue->varName, stValue)); // augmenting the affine set
     abValue->flag = a_NONE;
     return abValue;
     // Included the perturbed form as well
-}
-
-std::pair<double, double> Zonotope::concretize(StackValue* s, AbstractValue* a) // returns the concretized value of the stack value
-{
-    double ldev = 0;
-    double rdev = 0;
-
-    for(int i = 1; i < s->centralVector.size(); i++)
-    {
-        if(s->centralVector[i].second > 0)
-        {
-            ldev = ldev + s->centralVector[i].second*a->constraintOverCentralMatrix[std::stoi(s->centralVector[i].first) - 1].first;
-            rdev = rdev + s->centralVector[i].second*a->constraintOverCentralMatrix[std::stoi(s->centralVector[i].first) - 1].second;
-        }
-        else 
-        {
-            ldev = ldev + s->centralVector[i].second*a->constraintOverCentralMatrix[std::stoi(s->centralVector[i].first) - 1].second;
-            rdev = rdev + s->centralVector[i].second*a->constraintOverCentralMatrix[std::stoi(s->centralVector[i].first) - 1].first; 
-        }
-    }
-
-    for(int i = 0; i < s->perturbedVector.size(); i++)
-    {
-        if(s->perturbedVector[i].second > 0)
-        {
-            ldev = ldev + s->perturbedVector[i].second*a->constraintOverPerturbedMatrix[std::stoi(s->perturbedVector[i].first) - 1].first;
-            rdev = rdev + s->perturbedVector[i].second*a->constraintOverPerturbedMatrix[std::stoi(s->perturbedVector[i].first) - 1].second;
-        }
-        else 
-        {
-            ldev = ldev + s->perturbedVector[i].second*a->constraintOverPerturbedMatrix[std::stoi(s->perturbedVector[i].first) - 1].second;
-            rdev = rdev + s->perturbedVector[i].second*a->constraintOverPerturbedMatrix[std::stoi(s->perturbedVector[i].first) - 1].first; 
-        }
-    }
-
-    return std::make_pair(s->centralVector[0].second + ldev, s->centralVector[0].second + rdev);
-}
-
-std::pair<double, double> Zonotope::concretize(int k, AbstractValue* a) // returns the concretized value of the kth element in the affine-set
-{
-    double ldev = 0;
-    double rdev = 0;
-
-    for(int i = 1; i < a->n; i++)
-    {
-        if(a->centralMatrix(i,k) > 0)
-        {
-            ldev = ldev + a->centralMatrix(i,k)*a->constraintOverCentralMatrix[i - 1].first;
-            rdev = rdev + a->centralMatrix(i,k)*a->constraintOverCentralMatrix[i - 1].second;
-        }
-        else 
-        {
-            ldev = ldev + a->centralMatrix(i,k)*a->constraintOverCentralMatrix[i - 1].second;
-            rdev = rdev + a->centralMatrix(i,k)*a->constraintOverCentralMatrix[i - 1].first;
-        }
-    }
-    for(int i = 0; i < a->m; i++)
-    {
-        if(a->perturbedMatrix(i,k) > 0)
-        {
-            ldev = ldev + a->perturbedMatrix(i,k)*a->constraintOverPerturbedMatrix[i].first;
-            rdev = rdev + a->perturbedMatrix(i,k)*a->constraintOverPerturbedMatrix[i].second;
-        }
-        else 
-        {
-            ldev = ldev + a->perturbedMatrix(i,k)*a->constraintOverPerturbedMatrix[i].second;
-            rdev = rdev + a->perturbedMatrix(i,k)*a->constraintOverPerturbedMatrix[i].first; 
-        }
-    }
-
-
-    return std::make_pair(a->centralMatrix(0,k) + ldev, a->centralMatrix(0,k) + rdev);
-}
-
-StackValue* Zonotope::getStackValue(AbstractValue* a, int k) // gets the kth variable in the affine set (count starts from 0)
-{
-    if(a->p < k) // variable not present in the Affine-Set
-        return topStackValue();
-    
-    // creating a new stack value
-    StackValue* s = new StackValue;
-    s->varName = std::to_string(k); // named as the kth variable
-    s->lv = VARIABLE;
-    s->varPos = k;
-    s->flag = s_NONE;
-
-    // filling in the central-vector
-    for(int i = 0; i < a->n; i++)
-    {
-        if(a->centralMatrix(i,k) != 0)
-        {
-            s->centralVector.push_back(std::make_pair(std::to_string(i), a->centralMatrix(i,k)));
-        }
-    }
-    // filling in ther perturbed-vector
-    for(int i = 0; i < a->m; i++)
-    {
-        if(a->perturbedMatrix(i,k) != 0)
-        {
-            s->perturbedVector.push_back(std::make_pair(std::to_string(i), a->perturbedMatrix(i,k)));
-        }
-    }
-    return s;
-}
-
-AbstractValue* Zonotope::removeStackValue(AbstractValue* a, int k) // removes the variable at position k in the matrix from the affine-set
-{
-    if(a->p < k) // the stack_value doesn't exist
-        return a;
-
-    // removing it from the affine-set
-    std::map<std::string, StackValue*>::iterator itr;
-    for(itr = a->affineSet.begin(); itr != a->affineSet.end(); ++itr)
-    {
-        if(itr->second->varPos == k)
-            break;
-    }
-
-    // something wrong with the structure
-    if(itr == a->affineSet.end())
-        return a;
-    else
-        a->affineSet.erase(itr->first); // removing the stack value from the affine set
-    
-    if(a->n != 0) // checking for a 0 matrix
-        a->centralMatrix.shed_col(k);
-    if(a->m != 0)// checking for a 0 matrix
-        a->perturbedMatrix.shed_col(k);
-    for(itr = a->affineSet.begin(); itr != a->affineSet.end(); ++itr)
-    {
-        if(itr->second->varPos > k) // correcting the variable for all the stack variables
-            itr->second->varPos = itr->second->varPos - 1;
-    }
-    a->p = a->p - 1;
-    
-    if(a->p == 0)
-        a->flag = a_BOT;
-
-    return a;
-    
-}
-
-void Zonotope::fillAffineSet(AbstractValue* a) // takes an affine-set containing of 2 matrices and completes the affine-set
-{
-    // setting the dimensions
-    a->n = a->centralMatrix.n_rows;
-    a->p = a->centralMatrix.n_cols;
-    a->m = a->perturbedMatrix.n_rows;
-    // setting the flag
-    a->flag = a_NONE;
-    // making the constaint vectors
-    for(int i = 0; i < a->n-1; i++)
-        a->constraintOverCentralMatrix.push_back(std::make_pair(-1.0,1.0));
-    for(int i = 0; i < a->m; i++)
-        a->constraintOverPerturbedMatrix.push_back(std::make_pair(-1.0,1.0));
-    // filling the affine-set
-    for(int k = 0; k < a->p; k++)
-        a->affineSet.insert(std::make_pair(std::to_string(k), getStackValue(a,k)));
-}
-
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-
-
-
-int main()
-{
-    Zonotope zonotope;
-    
-    AbstractValue* X = new AbstractValue;
-
-    StackValue* var1 = new StackValue;
-    var1->varName = "var1";
-    var1->lv = VARIABLE;
-    var1->flag = s_NONE;
-    var1->centralVector = { {"0",3}, {"1", -4}, {"4", 6} };
-    var1->perturbedVector = { {"1",3}, {"3", 2}, {"4", -1} };
-
-    StackValue* var2 = new StackValue;
-    var2->varName = "var2";
-    var2->lv = VARIABLE;
-    var2->flag = s_NONE;
-    var2->centralVector = { {"0",-1}, {"2", -2}, {"3", 1} };
-    var2->perturbedVector = { {"1",3}, {"3", 2}, {"6", -1} };
-
-    zonotope.addCustomVariable(var1,X);
-    zonotope.addCustomVariable(var2,X);
-    zonotope.addCustomVariable(zonotope.evaluateBinaryOperation("+","+",var1, var2, X), X);
-    X = zonotope.join(X,X);
-    zonotope.printAbstractValue(X);
-    std::cout << std::endl << zonotope.compare(X,X) << std::endl;
-
-
-    return 0;
-
 }

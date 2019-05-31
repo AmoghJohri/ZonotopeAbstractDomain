@@ -1,34 +1,11 @@
-#ifndef ZONOTOPE_H_
-#define ZONOTOPE_H_
+#ifndef Zonotope_DOMAIN_HH
+#define Zonotope_DOMAIN_HH
 
-#include<iostream>
+#include <iostream>
+#include <map>
 #include<armadillo>
-#include<map>
-#include<vector>
-#include<string>
-#include "float.h"
-#include "assert.h"
 
-// EXTRA FUNCTIONS
-bool vecCompare1(const std::pair<double, double>&i, const std::pair<double, double>&j)
-{
-    return (i.first) < (j.first);
-}
-
-bool vecCompare2(const std::pair<std::string, double>&i, const std::pair<std::string, double>&j)
-{
-    return (i.first) < (j.first);
-}
-/////////////////////
-
-int globalCounter = INT_MIN; // in order to set the names for variables created as strings of integers;
-
-enum LatticeCompare // used in the compare operation, tells whether an affine-set is less than, greater than or equal to another affine-sets
-{
-    UC = -1,
-    LT = 0,
-    GT = 1,
-};
+#include "AbstractDomain.hh"
 
 enum stackValueFlag // for each stack value tells whether the affine-form corresponds to a TOP or BOT
 {
@@ -50,23 +27,19 @@ enum litOrVar // tells whether a variable is a LITERAL or a VARIABLE
     VARIABLE = 1,
 };
 
-struct StackValue
+struct ZonotopeStackValue
 {
     std::string varName = "unnamed"; // string to set the name of the stack-variable
-    litOrVar lv = VARIABLE; // tells whether the value corresponds to a literal or a variable
-    double litValue = 0; // in case of StackValue being a literal, the value is stored here
     int varPos = -10; // int to set the position (on the column) in which the affine-variable is present in the affine-set
     stackValueFlag flag = s_TOP; // tells whether the stackValue is a TOP, BOT or neither of the two
 
     // literals don't get saved here
-    std::vector<std::pair<std::string, double>> centralVector; // all the non-zero central noise symbols of a variable
-    std::vector<std::pair<std::string, double>> perturbedVector; // all the non-zero perturbed noise symbols of a variable
-
-    // function to sort the vectors containing central and perturbed noise symbols of the variable
-    void manage() { sort(centralVector.begin(),centralVector.end(),vecCompare2); sort(perturbedVector.begin(), perturbedVector.end(), vecCompare2) ;}
+    std::map<std::string, double> centralVector; // all the non-zero central noise symbols of a variable
+    std::map<std::string, double> perturbedVector; // all the non-zero perturbed noise symbols of a variable
 };
 
-struct AbstractValue // defining an affine-set
+
+struct ZonotopeAbstractValue
 {
     std::string affineSetName = "unnamed";// string to save the name of the affine-set 
 
@@ -82,58 +55,58 @@ struct AbstractValue // defining an affine-set
     std::vector<std::pair<double,double>> constraintOverCentralMatrix; // saves the constains over Cx
     std::vector<std::pair<double,double>> constraintOverPerturbedMatrix; // saves the constains over Px
 
-    std::map<std::string, StackValue*> affineSet; // contains a map from the name of the variables to the memory location of variables // literals are not stored in the affine set
-
+    std::map<std::string, ZonotopeStackValue*> affineSet; // contains a map from the name of the variables to the memory location of variables // literals are not stored in the affine set
+  
 };
 
-
-class Zonotope 
+class Zonotope : public AbstractDomain
 {
+public:
+    Zonotope(clang::CompilerInstance* ci);
+    
+    Zonotope(c_safe::CAnalyzerManager* manager);
 
-    public:
+    AbstractValue* topValue() override;
+    
+    AbstractValue* botValue() override;
+    
+    void printAbstractValue(AbstractValue* abstract_value) override;
+    
+    AbstractValue* copyAbstractValue(AbstractValue* abs) override;
+    
+    AbstractValue* meet(AbstractValue* op1, AbstractValue* op2) override;
+    
+    AbstractValue* join(AbstractValue* op1, AbstractValue* op2) override;
 
-        Zonotope(); // constructor for the class
+    AbstractValue* widen(AbstractValue* op1, AbstractValue* op2) override;
 
-        StackValue* topStackValue(); // returns pointer to top stack value
-        StackValue* botStackValue(); // returns pointer to bot stack value
+    LatticeCompare compare(AbstractValue* op1, AbstractValue* op2) override;
 
-        bool isTopStackValue(StackValue*); // given a pointer to a stack value tells if its top
-        bool isBotStackValue(StackValue*); // given a pointer to a stack value tells if its bot
-        
-        // PRINT FUNCTIONS
-        void printStackValue(std::string, AbstractValue*); // pretty prints the stack value based on its location in the affine set
-        void printStackValue(StackValue*); // pretty prints the stack value 
-        void printAbstractValue(AbstractValue*); // pretty prints the abstract value
 
-        // COPY Functions
-        StackValue* copyStackValue(StackValue*); // copies the stack value into another stack value and returns it's pointer
-        AbstractValue* copyAbstractValue(AbstractValue*); // copies the abstract value into another abstract value and returns it's pointer
+    AbstractValue* assignStackValue(std::string variable_name, std::string variable_type, StackValue* rhs_stack_value, AbstractValue* current_abstract_value) override;
 
-        StackValue* getStackValueOfLiteral(std::string, double, AbstractValue*); // gets the pointer to a stack-value with the literal - MAKE USE OF APRON LIBRARY
-        StackValue* getStackValueOfVariable(std::string, std::string, AbstractValue*); // gets the stack value of a variable in the affine-set, copies it into another StackValue and returns the later's pointer- MAKE USE OF APRON LIBRARY
-        AbstractValue* assignStackValue(std::string, std::string, StackValue*, AbstractValue*); // INCOMPLETE : uses APRON LIBRARY
+    StackValue* getStackValueOfLiteral(std::string type, double value, AbstractValue* current_abstract_value) override;
 
-        LatticeCompare compare(AbstractValue*, AbstractValue*); // takes two affine-set and returns the possible comparisions between them
-        AbstractValue* join(AbstractValue*, AbstractValue*); // takes two affine-set, joins them and returns the pointer to the joined affine set
-        AbstractValue* meet(AbstractValue*, AbstractValue*); // STILL HAVE TO IMLPEMENT
-        
-        AbstractValue createAffineSet(std::string); // creates an empty affine-set with no variables
-        AbstractValue* addCustomVariable(std::string, std::pair<double,double>, AbstractValue*);
-        
-        StackValue* getStackValue(AbstractValue*, int); // gets the stack value from an affine set the the required position
-        AbstractValue* removeStackValue(AbstractValue*, int); // removes a stack value from the affine-set, required in order to carry out matrix based operations
-        AbstractValue* addCustomVariable(StackValue*, AbstractValue*);
-        void fillAffineSet(AbstractValue*); // fills the mapping of affine set with the matrix values
+    StackValue* getStackValueOfVariable(std::string variable_name, std::string variabble_type, AbstractValue* current_abstract_value) override;
 
-        // HAVE TO IMPLEMENT THIS
-        
-        
-        // see variable + literal case
-        StackValue* evaluateBinaryOperation(std::string, std::string, StackValue*, StackValue*, AbstractValue*); // MAKE APRON BASED MODIFICATIONS
+    StackValue* evaluateBinaryOperation(std::string opcode, std::string return_type, StackValue* lhs_stack_value, StackValue* rhs_stack_value, AbstractValue* current_abstract_value) override;
 
-        // secondary functions
-        std::pair<double,double> concretize(StackValue*, AbstractValue*);
-        std::pair<double,double> concretize(int, AbstractValue*);
+    StackValue* evaluateUnaryOperation(std::string opcode, std::string return_type, StackValue* stack_value, AbstractValue* current_abstract_value) override;
 
-};
-#endif
+    StackValue* castStackValue(std::string src_type, std::string dest_type, StackValue* stack_value, AbstractValue* current_abstract_value) override;
+    
+    std::pair<AbstractValue*, AbstractValue*> assumeConstraint(std::string opcode, StackValue* lhs_stack_value, StackValue* rhs_stack_value, AbstractValue* current_abstract_value) override;
+
+
+    void printStackValue(ZonotopeStackValue* stackValue);
+
+    ZonotopeStackValue* copyStackValue(ZonotopeStackValue* s);
+    bool isBotStackValue(ZonotopeStackValue*);
+    bool isTopStackValue(ZonotopeStackValue*);
+    std::pair<double, double> concretize(ZonotopeStackValue*, ZonotopeAbstractValue*);
+    ZonotopeAbstractValue* addVariableToAffineSet(ZonotopeStackValue*, ZonotopeAbstractValue*);
+
+};    
+
+
+#endif // Zonotope_DOMAIN_HH
