@@ -9,6 +9,20 @@ Zonotope::Zonotope(c_safe::CAnalyzerManager* manager):AbstractDomain(manager)
     std::cout << "Zonotope Constructor" << std::endl;
 }
 
+ZonotopeStackValue* Zonotope::topStackValue()
+{
+    ZonotopeStackValue* n = new ZonotopeStackValue;
+    n->flag = s_TOP;
+    return n;
+}
+
+ZonotopeStackValue* Zonotope::botStackValue()
+{
+    ZonotopeStackValue* n = new ZonotopeStackValue;
+    n->flag = s_BOT;
+    return n;
+}
+
 bool Zonotope::isTopStackValue(ZonotopeStackValue* s) // checks for a pointer whether it points to a TOP stack value
 {
     if(s->flag == s_TOP)
@@ -218,12 +232,11 @@ AbstractValue* Zonotope::assignStackValue(std::string variable_name, std::string
     ZonotopeStackValue *rhs = (ZonotopeStackValue*) rhs_stack_value;
     ZonotopeAbstractValue *abstract_value = (ZonotopeAbstractValue*) copyAbstractValue(current_abstract_value);
 
-    rhs->varName = variable_name;
-
     // Add the constraint variable_name = rhs, to abstract_value.
     if(isTopStackValue(rhs)) //    printStackValue(rhs); if the stack value is a top, it removes it from the affine-set (this is the same as the stack value having no constraints over it)
     {
-        abstract_value->affineSet.erase(variable_name);
+        rhs = abstract_value->affineSet[variable_name];
+        abstract_value = removeStackValue(abstract_value, rhs->varPos);
         return abstract_value;
     }
     else if(isBotStackValue(rhs)) // if the stack value if BOT, it returns a BOT abstract value
@@ -231,6 +244,7 @@ AbstractValue* Zonotope::assignStackValue(std::string variable_name, std::string
         delete abstract_value;
         return botValue();
     }
+    rhs->varName = variable_name;
     // otherwise, adds the stack value into the abstract value
     abstract_value = addVariableToAffineSet(rhs,abstract_value); // adding to the number of variables
     abstract_value->affineSet[variable_name] = rhs;
@@ -299,6 +313,7 @@ StackValue* Zonotope::getStackValueOfVariable(std::string variableName, std::str
 
 }
 
+// make usage of return type conversion
 StackValue* Zonotope::evaluateBinaryOperation(std::string opcode, std::string return_type, StackValue* lhs_stack_value, StackValue* rhs_stack_value, AbstractValue* current_abstract_value)
 {
     ZonotopeStackValue *op1 = (ZonotopeStackValue*) lhs_stack_value;
@@ -309,7 +324,100 @@ StackValue* Zonotope::evaluateBinaryOperation(std::string opcode, std::string re
     // Do binary operation on op1 and op2 to get result
     // Includes all binary arithematic operations.
 
-    return result;
+    // checks whether the two numbers are bot or top
+    if((isBotStackValue(op1) || isBotStackValue(op2)))
+        return botStackValue();
+    else if((isTopStackValue(op1) || isTopStackValue(op2)))
+        return topStackValue();
+
+    if(strcmp(opcode.c_str(),"+") == 0) // performs binary addition
+    {
+        ZonotopeStackValue* s = new ZonotopeStackValue; // initiliazing the new variable
+        //s->varName = std::to_string(globalCounter); globalCounter = globalCounter + 1; // setting the name of the variable
+        s->flag = s_NONE; // setting the flag to show it is not a TOP or a BOT value
+
+        std::map <std::string, double> temp; // to set the centralVector
+        std::map <std::string, double>::iterator itr;
+        for(itr = op1->centralVector.begin(); itr != op1->centralVector.end(); ++itr)
+        {
+            temp.insert(*itr);
+        }
+        for(itr = op2->centralVector.begin(); itr != op2->centralVector.end(); ++itr)
+        {
+            if(temp.find(itr->first) != temp.end())
+            {
+                temp[itr->first] = temp[itr->first] + itr->second;
+            }
+            else
+            {
+                temp.insert(*itr);
+            }
+        }
+        s->centralVector = temp;
+        temp.clear();
+        for(itr = op1->perturbedVector.begin(); itr != op1->perturbedVector.end(); ++itr)
+        {
+            temp.insert(*itr);
+        }
+        for(itr = op2->perturbedVector.begin(); itr != op2->perturbedVector.end(); ++itr)
+        {
+            if(temp.find(itr->first) != temp.end())
+            {
+                temp[itr->first] = temp[itr->first] + itr->second;
+            }
+            else
+            {
+                temp.insert(*itr);
+            }
+        }
+        s->perturbedVector = temp;
+        return s;
+    }
+
+    else if(strcmp(opcode.c_str(),"-") == 0) // performs binary addition
+    {
+        ZonotopeStackValue* s = new ZonotopeStackValue; // initiliazing the new variable
+        //s->varName = std::to_string(globalCounter); globalCounter = globalCounter + 1; // setting the name of the variable
+        s->flag = s_NONE; // setting the flag to show it is not a TOP or a BOT value
+
+        std::map <std::string, double> temp; // to set the centralVector
+        std::map <std::string, double>::iterator itr;
+        for(itr = op1->centralVector.begin(); itr != op1->centralVector.end(); ++itr)
+        {
+            temp.insert(*itr);
+        }
+        for(itr = op2->centralVector.begin(); itr != op2->centralVector.end(); ++itr)
+        {
+            if(temp.find(itr->first) != temp.end())
+            {
+                temp[itr->first] = temp[itr->first] - itr->second;
+            }
+            else
+            {
+                temp.insert(*itr);
+            }
+        }
+        s->centralVector = temp;
+        temp.clear();
+        for(itr = op1->perturbedVector.begin(); itr != op1->perturbedVector.end(); ++itr)
+        {
+            temp.insert(*itr);
+        }
+        for(itr = op2->perturbedVector.begin(); itr != op2->perturbedVector.end(); ++itr)
+        {
+            if(temp.find(itr->first) != temp.end())
+            {
+                temp[itr->first] = temp[itr->first] - itr->second;
+            }
+            else
+            {
+                temp.insert(*itr);
+            }
+        }
+        s->perturbedVector = temp;
+        return s;
+    }
+
 }
 
 StackValue* Zonotope::evaluateUnaryOperation(std::string opcode, std::string return_type, StackValue* stack_value, AbstractValue* current_abstract_value)
@@ -318,7 +426,7 @@ StackValue* Zonotope::evaluateUnaryOperation(std::string opcode, std::string ret
     ZonotopeStackValue *result = new ZonotopeStackValue;
     ZonotopeAbstractValue *abstract_value = (ZonotopeAbstractValue*) current_abstract_value;
 
-    // Do unary operation on operand to get resultstd::pair<AbstractValue*, AbstractValue*> assumeConstraint(std::string opcode, StackValue* lhs_stack_value, StackValue* rhs_stack_value, AbstractValue* current_abstract_value)
+    // Do unary operation on operand to get resultstd::pair<AbstractValue*, AbstractValue*> assumeConstraint(std::string opcode, StackValue* lhs_stack_value, StackValue* op2, AbstractValue* current_abstract_value)
     // Includes all unary arithematic operations.
 
     return result;
@@ -335,10 +443,17 @@ StackValue* Zonotope::castStackValue(std::string src_type, std::string dest_type
     // Includes all unary arithematic operations.
 
     if(checkOverflow(dest_type, interval))
+    {
         result = copyStackValue(operand);
+        return result;
+    }
     else
+    {
         std::cout << "OVER-FLOW DETECTED" << std::endl;
-    return result;
+        result->flag = s_TOP;
+        return result;
+    }
+    
 }
 
 std::pair<AbstractValue*, AbstractValue*> Zonotope::assumeConstraint(std::string opcode, StackValue* lhs_stack_value, StackValue* rhs_stack_value, AbstractValue* current_abstract_value)
@@ -489,7 +604,6 @@ ZonotopeAbstractValue* Zonotope::removeStackValue(ZonotopeAbstractValue* a, int 
 {
     if(a->p < k) // the stack_value doesn't exist
         return a;
-
     // removing it from the affine-set
     std::map<std::string, ZonotopeStackValue*>::iterator itr;
     for(itr = a->affineSet.begin(); itr != a->affineSet.end(); ++itr)
@@ -503,7 +617,6 @@ ZonotopeAbstractValue* Zonotope::removeStackValue(ZonotopeAbstractValue* a, int 
         return a;
     else
         a->affineSet.erase(itr->first); // removing the stack value from the affine set
-    
     if(a->n != 0) // checking for a 0 matrix
         a->centralMatrix.shed_col(k);
     if(a->m != 0)// checking for a 0 matrix
@@ -535,26 +648,14 @@ bool Zonotope::intervalCompare(std::pair<T1,T2> p1, std::pair<T3,T4> p2) // retu
 template <typename T1, typename T2>
 bool Zonotope::checkOverflow(std::string datatype, std::pair<T1, T2> interval) // returns false if there is overflow
 {
-    int size;
 
-    switch(datatype.length())
-    {
-        case 5 : size = sizeof(short); break;
-        case 3 : size = sizeof(int); break;
-        case 4 : size = sizeof(long); break;
-        case 9 : size = sizeof(long long); break;
-        case 14 : size = sizeof(unsigned short); break;
-        case 12 : size = sizeof(unsigned int); break;
-        case 13 : size = sizeof(unsigned long); break;
-        case 18 : size = sizeof(unsigned long long); break;
-    }
-
-    if(datatype.length() > 10)
-    {
-        return intervalCompare(std::make_pair(0, pow(2, size*8) -1), interval);
-    }
-    else
-    {
-        return intervalCompare(std::make_pair(pow(2,size*8)*-1, pow(2,size*8)-1), interval);
-    }
+    if(datatype.compare("short") == 0) return intervalCompare(std::make_pair(-1*std::numeric_limits<short>::max() - 1, std::numeric_limits<short>::max()), interval);
+    else if(datatype.compare("int") == 0) return intervalCompare(std::make_pair(-1*std::numeric_limits<int>::max() - 1, std::numeric_limits<int>::max()), interval);
+    else if(datatype.compare("long") == 0) return intervalCompare(std::make_pair(-1*std::numeric_limits<long>::max() - 1, std::numeric_limits<long>::max()), interval);
+    else if(datatype.compare("long long") == 0) return intervalCompare(std::make_pair(-1*std::numeric_limits<long long>::max() - 1, std::numeric_limits<long long>::max()), interval);
+    else if(datatype.compare("unsigned short") == 0) return intervalCompare(std::make_pair(0, std::numeric_limits<unsigned short>::max()), interval);
+    else if(datatype.compare("unsigned int") == 0) return intervalCompare(std::make_pair(0, std::numeric_limits<unsigned int>::max()), interval);
+    else if(datatype.compare("unsigned long") == 0) return intervalCompare(std::make_pair(0, std::numeric_limits<unsigned long>::max()), interval);
+    else if(datatype.compare("unsigned long long") == 0) return intervalCompare(std::make_pair(0, std::numeric_limits<unsigned long long>::max()), interval);
+    
 }
