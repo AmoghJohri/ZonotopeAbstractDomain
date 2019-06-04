@@ -9,15 +9,17 @@ Zonotope::Zonotope(c_safe::CAnalyzerManager* manager):AbstractDomain(manager)
     std::cout << "Zonotope Constructor" << std::endl;
 }
 
-ZonotopeStackValue* Zonotope::topStackValue()
+ZonotopeStackValue* Zonotope::topStackValue() // returns pointer to a TOP stackvalue
 {
+    std::cout << "I am in Zonotope::topStackValue" << std::endl;
     ZonotopeStackValue* n = new ZonotopeStackValue;
     n->flag = s_TOP;
     return n;
 }
 
-ZonotopeStackValue* Zonotope::botStackValue()
+ZonotopeStackValue* Zonotope::botStackValue() // returns a pointer to a BOT stackValue
 {
+    std::cout << "I am in Zonotope::botStackValue" << std::endl;
     ZonotopeStackValue* n = new ZonotopeStackValue;
     n->flag = s_BOT;
     return n;
@@ -25,6 +27,7 @@ ZonotopeStackValue* Zonotope::botStackValue()
 
 bool Zonotope::isTopStackValue(ZonotopeStackValue* s) // checks for a pointer whether it points to a TOP stack value
 {
+    std::cout << "I am in Zonotope::isTopStackValue" << std::endl;
     if(s->flag == s_TOP)
         return true;
     return false;
@@ -32,6 +35,7 @@ bool Zonotope::isTopStackValue(ZonotopeStackValue* s) // checks for a pointer wh
 
 bool Zonotope::isBotStackValue(ZonotopeStackValue* s) // checks for a pointer whether it ponits to a BOT stack value
 {
+    std::cout << "I am in Zonotope::isBotStackValue" << std::endl;
     if(s->flag == s_BOT)
         return true;
     return false;
@@ -39,6 +43,7 @@ bool Zonotope::isBotStackValue(ZonotopeStackValue* s) // checks for a pointer wh
 
 AbstractValue* Zonotope::topValue() // returns a pointer to the top abstract value
 {
+    std::cout << "I am in Zonotope::topValue" << std::endl;
     ZonotopeAbstractValue *top = new ZonotopeAbstractValue;
     top->flag = a_TOP;
     
@@ -49,6 +54,7 @@ AbstractValue* Zonotope::topValue() // returns a pointer to the top abstract val
 
 AbstractValue* Zonotope::botValue() // returns a pointer to the bot abstract value
 {
+    std::cout << "I am in Zonotope::botValue" << std::endl;
     ZonotopeAbstractValue *bot = new ZonotopeAbstractValue;
     bot->flag = a_BOT;
     // Initialize the required  fields to make it an abstract value with unsatisfiable constraints.
@@ -58,6 +64,7 @@ AbstractValue* Zonotope::botValue() // returns a pointer to the bot abstract val
 
 void Zonotope::printAbstractValue(AbstractValue* abstract_value) // pretty prints the abstract value
 {
+    std::cout << "I am in Zonotope::printAbstractValue" << std::endl;
     ZonotopeAbstractValue *currentAbstractValue = (ZonotopeAbstractValue*) abstract_value;
     // Pretty-print abs_value.
     std::cout << "///////////////////////////////////////////// REPORT ///////////////////////////////////////////////" << std::endl << std::endl;
@@ -80,7 +87,7 @@ void Zonotope::printAbstractValue(AbstractValue* abstract_value) // pretty print
     std::cout << "Perturbed Matrix: (m x p)" << std::endl;
     std::cout << currentAbstractValue->perturbedMatrix << std::endl;// prints the perturbed matrix
 
-    std::cout << "Interval Constraints: (n+m-1)" << std::endl;
+    std::cout << "Interval Constraints: (n - 1 + m)" << std::endl;
     std::vector<std::pair<double,double>>::iterator itr; // iterating over the vector containing interval constrains
     for(itr = currentAbstractValue->constraintOverCentralMatrix.begin(); itr != currentAbstractValue->constraintOverCentralMatrix.end(); ++itr) // printing constaints on central noise symbols
     {
@@ -106,30 +113,37 @@ void Zonotope::printAbstractValue(AbstractValue* abstract_value) // pretty print
     std::map<std::string, ZonotopeStackValue*>::iterator itr2; // sorting the vectors in the stack value
     for(itr2 = (currentAbstractValue->affineSet).begin(); itr2 != (currentAbstractValue->affineSet).end(); ++itr2)
     {
-        std::cout << itr2->first << " = ";
+        //std::cout << itr2->first << " = ";
         this->printStackValue((itr2->second));
-        std::cout << "Concretized Value = [" << concretize(itr2->second, currentAbstractValue).first << " , " << concretize(itr2->second, currentAbstractValue).second << "] ";
+        std::pair<double,double> p = concretize(itr2->second, currentAbstractValue); // storing the concretized value
+        std::cout << "Concretized Value = [" << p.first << " , " << p.second << "] ";
         std::cout << std::endl << std::endl;
     }
-
-    std::cout << "//////////////////////////////////////////////////////////////////////////////////////////////////////" << std::endl << std::endl;
+    std::cout << "////////////////////////////////////////////////////////////////////////////////////////////////////" << std::endl << std::endl;
 
 }
 
 void Zonotope::printStackValue(ZonotopeStackValue* stackValue) // pretty-prints a stack value into its affine form
 {
+    std::cout << "I am in Zonotope::printStackValue" << std::endl;
+
     if(stackValue->flag == s_TOP) // prints TOP if the stack value corresponds to a TOP stack value
         std::cout << "TOP" << std::endl;
     else if(stackValue->flag == s_BOT) // rints BOT if the stack value corresponds to a BOT stack value
         std::cout << "BOT" << std::endl;
     else // if the stack value is niether a TOP or a BOT
     {
+        std::cout << stackValue->varName << " = ";
         // printing directly through vectors
         if(stackValue->centralVector.find("0") != stackValue->centralVector.end())
-            stackValue->centralVector["0"]; // printing the central stackvalue
+            std::cout << stackValue->centralVector["0"] << "e0"; // printing the central stackvalue
         std::map<std::string, double>::iterator itr; // printing the central noise terms
         for(itr = stackValue->centralVector.begin(); itr!= stackValue->centralVector.end(); ++itr)
+        {
+            if(itr == stackValue->centralVector.begin())
+                continue;
             std::cout << " + " << itr->second << "e" << itr->first;
+        }
         for(itr = stackValue->perturbedVector.begin(); itr!= stackValue->perturbedVector.end(); ++itr)// printing the perturved noise terms
             std::cout << " + " << itr->second << "n" << itr->first;
         std::cout << std::endl;
@@ -137,8 +151,16 @@ void Zonotope::printStackValue(ZonotopeStackValue* stackValue) // pretty-prints 
 }
 ZonotopeStackValue* Zonotope::copyStackValue(ZonotopeStackValue* s) // takes a stack value, copies it and returns a pointer to the copy
 {
+    std::cout << "I am in Zonotope::copyStackValue" << std::endl;
     // copies s into o
 
+    // checks for TOP and BOT stack values
+    if(s->flag == s_TOP)
+        return topStackValue();
+    else if (s->flag == s_BOT)
+        return botStackValue();
+
+    // proceeds only when the stackValue is neither TOP nor BOT
     ZonotopeStackValue* o = new ZonotopeStackValue;
     o->varName = s->varName;
     o->varPos = s->varPos;
@@ -155,10 +177,18 @@ ZonotopeStackValue* Zonotope::copyStackValue(ZonotopeStackValue* s) // takes a s
 
 AbstractValue* Zonotope::copyAbstractValue(AbstractValue* abstract_value) // makes a copy of the abstract value and returns a pointer to the copy
 {
+    std::cout << "I am in Zonotope::copyAbstractValue" << std::endl;
     ZonotopeAbstractValue *a = (ZonotopeAbstractValue*) abstract_value;
     ZonotopeAbstractValue *x = new ZonotopeAbstractValue;
 
-    // DeepCopy a into xsss
+    // checks for TOP and BOT abstract values
+    if(a->flag == a_TOP)
+        return topValue();
+    else if(a->flag == a_BOT)
+        return botValue();
+
+    // proceeds only when the abstract value is neither TOP nor BOT
+    // DeepCopy a into x
     x->affineSetName = a->affineSetName;
     x->n = a->n;
     x->m = a->m;
@@ -181,6 +211,7 @@ AbstractValue* Zonotope::copyAbstractValue(AbstractValue* abstract_value) // mak
 
 AbstractValue* Zonotope::meet(AbstractValue* abstract_value_1, AbstractValue* abstract_value_2)
 {
+    std::cout << "I am in Zonotope::meet" << std::endl;
     ZonotopeAbstractValue *op1 = (ZonotopeAbstractValue*) abstract_value_1;
     ZonotopeAbstractValue *op2 = (ZonotopeAbstractValue*) abstract_value_2;
     ZonotopeAbstractValue *result = new ZonotopeAbstractValue;
@@ -192,6 +223,7 @@ AbstractValue* Zonotope::meet(AbstractValue* abstract_value_1, AbstractValue* ab
 
 AbstractValue* Zonotope::join(AbstractValue* abstract_value_1, AbstractValue* abstract_value_2)
 {
+    std::cout << "I am in Zonotope::join" << std::endl;
     ZonotopeAbstractValue *op1 = (ZonotopeAbstractValue*) abstract_value_1;
     ZonotopeAbstractValue *op2 = (ZonotopeAbstractValue*) abstract_value_2;
     ZonotopeAbstractValue *result = new ZonotopeAbstractValue;
@@ -203,6 +235,7 @@ AbstractValue* Zonotope::join(AbstractValue* abstract_value_1, AbstractValue* ab
 
 AbstractValue* Zonotope::widen(AbstractValue* abstract_value_1, AbstractValue* abstract_value_2)
 {
+    std::cout << "I am in Zonotope::widen" << std::endl;
     ZonotopeAbstractValue *op1 = (ZonotopeAbstractValue*) abstract_value_1;
     ZonotopeAbstractValue *op2 = (ZonotopeAbstractValue*) abstract_value_2;
     ZonotopeAbstractValue *result = new ZonotopeAbstractValue;
@@ -215,6 +248,7 @@ AbstractValue* Zonotope::widen(AbstractValue* abstract_value_1, AbstractValue* a
 
 LatticeCompare Zonotope::compare(AbstractValue* abstract_value_1, AbstractValue* abstract_value_2)
 {
+    std::cout << "I am in Zonotope::compare" << std::endl;
     ZonotopeAbstractValue *op1 = (ZonotopeAbstractValue*) abstract_value_1;
     ZonotopeAbstractValue *op2 = (ZonotopeAbstractValue*) abstract_value_2;
 
@@ -227,16 +261,20 @@ LatticeCompare Zonotope::compare(AbstractValue* abstract_value_1, AbstractValue*
     return UC;
 }
 
-AbstractValue* Zonotope::assignStackValue(std::string variable_name, std::string variable_type, StackValue* rhs_stack_value, AbstractValue* current_abstract_value)
+AbstractValue* Zonotope::assignStackValue(std::string variable_name, std::string variable_type, StackValue* rhs_stack_value, AbstractValue* current_abstract_value) // assigns a stackValue and adds it to the affineSet
 {
+    std::cout << "I am in Zonotope::assignStackValue" << std::endl;
     ZonotopeStackValue *rhs = (ZonotopeStackValue*) rhs_stack_value;
     ZonotopeAbstractValue *abstract_value = (ZonotopeAbstractValue*) copyAbstractValue(current_abstract_value);
 
     // Add the constraint variable_name = rhs, to abstract_value.
     if(isTopStackValue(rhs)) //    printStackValue(rhs); if the stack value is a top, it removes it from the affine-set (this is the same as the stack value having no constraints over it)
     {
-        rhs = abstract_value->affineSet[variable_name];
-        abstract_value = removeStackValue(abstract_value, rhs->varPos);
+        if(abstract_value->affineSet.find(variable_name) != abstract_value->affineSet.end()) // checks if the variable is present in the affine-set, if yes, then removes it
+        {
+            rhs = abstract_value->affineSet[variable_name];
+            abstract_value = removeStackValue(abstract_value, rhs->varPos);
+        }
         return abstract_value;
     }
     else if(isBotStackValue(rhs)) // if the stack value if BOT, it returns a BOT abstract value
@@ -252,8 +290,10 @@ AbstractValue* Zonotope::assignStackValue(std::string variable_name, std::string
     return abstract_value;
 }
 
+// NEEDS CORRECTION - implicit conversion before the function is even called
 StackValue* Zonotope::getStackValueOfLiteral(std::string type, double value, AbstractValue* current_abstract_value)
 {
+    std::cout << "I am in Zonotope::getStackValueOfLiteral" << std::endl;
     ZonotopeStackValue *result = new ZonotopeStackValue;
     ZonotopeAbstractValue *abstract_value = (ZonotopeAbstractValue*) current_abstract_value;
 
@@ -261,34 +301,27 @@ StackValue* Zonotope::getStackValueOfLiteral(std::string type, double value, Abs
         // the name of the literal is stored as string denoting its position in the matrix
 
     // makes a new stack value for the appropriate literal and outputs the same
-    if(strcmp(type.c_str(), "int") == 0) // if the output type is a string
+    std::pair<double,double> p = std::make_pair(-1*value,value);
+    if(checkOverflow(type, p))
     {
         ZonotopeStackValue *output = new ZonotopeStackValue;
-        output->centralVector["0"] = (int)value;
+        output->centralVector["0"] = value;
         output->varPos = -2;
         output->flag = s_NONE;
         return output;
     }
-    else if(strcmp(type.c_str(), "real") == 0) // if the output type is a double
+    else // if the output type does not match - this does not function correctly!!
     {
-        ZonotopeStackValue *output = new ZonotopeStackValue;
-        output->varPos = -2;
-        output->flag = s_NONE;
-        return output;
+        std::cout << "Unsupported Type : " << type << std::endl;
+        assert("false");
+        return topStackValue();
     }
-    else // if the output type does not match
-    {
-        std::cout << "Unknown Type" << type << std::endl;
-        assert(false);
-    }
-
-    return result;
 }
-
 
 
 StackValue* Zonotope::getStackValueOfVariable(std::string variableName, std::string variable_type, AbstractValue* current_abstract_value)
 {
+    std::cout << "I am in Zonotope::getStackValueOfVariable" << std::endl;
     ZonotopeStackValue *s = new ZonotopeStackValue;
     ZonotopeAbstractValue *currentAbstractValue = (ZonotopeAbstractValue*) current_abstract_value;
 
@@ -297,12 +330,13 @@ StackValue* Zonotope::getStackValueOfVariable(std::string variableName, std::str
     // looks in the affine_set for the required variable
     // if the variable is not present, returns TOP
     auto itr = currentAbstractValue->affineSet.find(variableName);
-    if(itr == currentAbstractValue->affineSet.end())
+
+    if(itr == currentAbstractValue->affineSet.end()) // if the variable is not present in the affine-set
     {
         s->flag = s_TOP;
         return s;
     }
-    else
+    else // if the variable is present in the affine-set
     {
         s->varPos = itr->second->varPos;
         s->flag = itr->second->flag;
@@ -316,6 +350,7 @@ StackValue* Zonotope::getStackValueOfVariable(std::string variableName, std::str
 // make usage of return type conversion
 StackValue* Zonotope::evaluateBinaryOperation(std::string opcode, std::string return_type, StackValue* lhs_stack_value, StackValue* rhs_stack_value, AbstractValue* current_abstract_value)
 {
+    std::cout << "I am in Zonotope::evaluateBinaryOperation" << std::endl;
     ZonotopeStackValue *op1 = (ZonotopeStackValue*) lhs_stack_value;
     ZonotopeStackValue *op2 = (ZonotopeStackValue*) rhs_stack_value;
     ZonotopeStackValue *result = new ZonotopeStackValue;
@@ -422,6 +457,7 @@ StackValue* Zonotope::evaluateBinaryOperation(std::string opcode, std::string re
 
 StackValue* Zonotope::evaluateUnaryOperation(std::string opcode, std::string return_type, StackValue* stack_value, AbstractValue* current_abstract_value)
 {
+    std::cout << "I am in Zonotope::evaluateUnaryOperation" << std::endl;
     ZonotopeStackValue *operand = (ZonotopeStackValue*) stack_value;
     ZonotopeStackValue *result = new ZonotopeStackValue;
     ZonotopeAbstractValue *abstract_value = (ZonotopeAbstractValue*) current_abstract_value;
@@ -434,6 +470,7 @@ StackValue* Zonotope::evaluateUnaryOperation(std::string opcode, std::string ret
 
 StackValue* Zonotope::castStackValue(std::string src_type, std::string dest_type, StackValue* stack_value, AbstractValue* current_abstract_value)
 {
+    std::cout << "I am in Zonotope::castStackValue" << std::endl;
     ZonotopeStackValue *operand = (ZonotopeStackValue*) stack_value;
     ZonotopeStackValue *result = new ZonotopeStackValue;
     ZonotopeAbstractValue *abstract_value = (ZonotopeAbstractValue*) current_abstract_value;
@@ -458,6 +495,7 @@ StackValue* Zonotope::castStackValue(std::string src_type, std::string dest_type
 
 std::pair<AbstractValue*, AbstractValue*> Zonotope::assumeConstraint(std::string opcode, StackValue* lhs_stack_value, StackValue* rhs_stack_value, AbstractValue* current_abstract_value)
 {
+    std::cout << "I am in Zonotope::assumeConstrain" << std::endl;
     ZonotopeStackValue *lhs = (ZonotopeStackValue*) lhs_stack_value;
     ZonotopeStackValue *rhs = (ZonotopeStackValue*) rhs_stack_value;
     ZonotopeAbstractValue *result_true = (ZonotopeAbstractValue*) copyAbstractValue(current_abstract_value);
@@ -471,6 +509,7 @@ std::pair<AbstractValue*, AbstractValue*> Zonotope::assumeConstraint(std::string
 
 std::pair<double, double> Zonotope::concretize(ZonotopeStackValue* s, ZonotopeAbstractValue* a) // returns the concretized value of the stack value
 {
+    std::cout << "I am in Zonotope::concretize" << std::endl;
     double ldev = 0;
     double rdev = 0;
 
@@ -516,6 +555,7 @@ std::pair<double, double> Zonotope::concretize(ZonotopeStackValue* s, ZonotopeAb
 
 ZonotopeAbstractValue* Zonotope::addVariableToAffineSet(ZonotopeStackValue* stValue, ZonotopeAbstractValue* abValue) // takes a pointer to a stack value and abstract value and adds the stack value to the affine set
 {
+    std::cout << "I am in Zonotope::addVariableToAffineSet" << std::endl;
     // if stack value is neither a top or a bot
 
     // augmenting cols in the central and perturbed matrices
@@ -602,6 +642,7 @@ ZonotopeAbstractValue* Zonotope::addVariableToAffineSet(ZonotopeStackValue* stVa
 
 ZonotopeAbstractValue* Zonotope::removeStackValue(ZonotopeAbstractValue* a, int k) // removes the variable at position k in the matrix from the affine-set
 {
+    std::cout << "I am in Zonotope::removeStackValue" << std::endl;
     if(a->p < k) // the stack_value doesn't exist
         return a;
     // removing it from the affine-set
@@ -623,7 +664,7 @@ ZonotopeAbstractValue* Zonotope::removeStackValue(ZonotopeAbstractValue* a, int 
         a->perturbedMatrix.shed_col(k);
     for(itr = a->affineSet.begin(); itr != a->affineSet.end(); ++itr)
     {
-        if(itr->second->varPos > k) // correcting the variable for all the stack variables
+        if(itr->second->varPos > k) // correcting the variable position for all the stack variables
             itr->second->varPos = itr->second->varPos - 1;
     }
     a->p = a->p - 1;
@@ -639,6 +680,7 @@ ZonotopeAbstractValue* Zonotope::removeStackValue(ZonotopeAbstractValue* a, int 
 template <typename T1, typename T2, typename T3, typename T4>
 bool Zonotope::intervalCompare(std::pair<T1,T2> p1, std::pair<T3,T4> p2) // returns true if p2 <= p1
 {
+    std::cout << "I am in Zonotope::intervalCompare" << std::endl;
     if(p2.second <= p1.second && p2.first >= p1.first)
         return true;
     return false;
@@ -648,6 +690,10 @@ bool Zonotope::intervalCompare(std::pair<T1,T2> p1, std::pair<T3,T4> p2) // retu
 template <typename T1, typename T2>
 bool Zonotope::checkOverflow(std::string datatype, std::pair<T1, T2> interval) // returns false if there is overflow
 {
+    std::cout << "I am in Zonotope::checkOverFlow" << std::endl;
+
+    if(interval.second < interval.first)
+        return false;
 
     if(datatype.compare("short") == 0) return intervalCompare(std::make_pair(-1*std::numeric_limits<short>::max() - 1, std::numeric_limits<short>::max()), interval);
     else if(datatype.compare("int") == 0) return intervalCompare(std::make_pair(-1*std::numeric_limits<int>::max() - 1, std::numeric_limits<int>::max()), interval);
@@ -657,5 +703,6 @@ bool Zonotope::checkOverflow(std::string datatype, std::pair<T1, T2> interval) /
     else if(datatype.compare("unsigned int") == 0) return intervalCompare(std::make_pair(0, std::numeric_limits<unsigned int>::max()), interval);
     else if(datatype.compare("unsigned long") == 0) return intervalCompare(std::make_pair(0, std::numeric_limits<unsigned long>::max()), interval);
     else if(datatype.compare("unsigned long long") == 0) return intervalCompare(std::make_pair(0, std::numeric_limits<unsigned long long>::max()), interval);
-    
+    else return false;
 }
+
