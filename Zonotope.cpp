@@ -409,7 +409,7 @@ StackValue* Zonotope::evaluateBinaryOperation(std::string opcode, std::string re
         return s;
     }
 
-    else if(strcmp(opcode.c_str(),"-") == 0) // performs binary addition
+    else if(strcmp(opcode.c_str(),"-") == 0) // performs binary subtraction
     {
         ZonotopeStackValue* s = new ZonotopeStackValue; // initiliazing the new variable
         //s->varName = std::to_string(globalCounter); globalCounter = globalCounter + 1; // setting the name of the variable
@@ -452,7 +452,134 @@ StackValue* Zonotope::evaluateBinaryOperation(std::string opcode, std::string re
         s->perturbedVector = temp;
         return s;
     }
+    else if(strcmp(opcode.c_str(),"*") == 0) // performs binary multiplication // check if this is correct
+    {
+        ZonotopeStackValue* s = new ZonotopeStackValue; // initiliazing the new variable
+        s->flag = s_NONE;
+        
+        // setting the new central value
+        double x0 = 0;
+        double y0 = 0;
+        double x = 0;
+        double y = 0;
+        if(op1->centralVector.find("0") != op1->centralVector.end())
+            x0 = op1->centralVector["0"];
+        if(op2->centralVector.find("0") != op2->centralVector.end())
+            y0 = op2->centralVector["0"];
+        s->centralVector["0"] = x0 * y0;
 
+        double new_term = 0;
+
+        for(int i = 1; i < abstract_value->n; i++)
+        {
+            x = 0;
+            y = 0;
+            
+            if(op1->centralVector.find(std::to_string(i)) != op1->centralVector.end())
+                x = op1->centralVector[std::to_string(i)];
+            if(op2->centralVector.find(std::to_string(i)) != op2->centralVector.end())
+                y = op2->centralVector[std::to_string(i)];
+            s->centralVector["0"] = s->centralVector["0"] + (0.5)*abs(x*y);
+            new_term = new_term + (0.5)*abs(x*y);
+        }
+        for(int i = 0; i < abstract_value->m; i++)
+        {
+            x = 0;
+            y = 0;
+            if(op1->perturbedVector.find(std::to_string(i)) != op1->perturbedVector.end())
+                x = op1->perturbedVector[std::to_string(i)];
+            if(op2->perturbedVector.find(std::to_string(i)) != op2->perturbedVector.end())
+                y = op2->perturbedVector[std::to_string(i)];
+            s->centralVector["0"] = s->centralVector["0"] + (0.5)*abs(x*y);
+            new_term = new_term + (0.5)*abs(x*y);
+        }
+
+        // setting the central noise terms
+        for(int i = 1; i < abstract_value->n; i++)
+        {
+            x = 0;
+            y = 0;
+            if(op1->centralVector.find(std::to_string(i)) != op1->centralVector.end())
+                x = op1->centralVector[std::to_string(i)];
+            if(op2->centralVector.find(std::to_string(i)) != op2->centralVector.end())
+                y = op2->centralVector[(std::to_string(i))];
+            if(x0*y + y0*x != 0)
+                s->centralVector[std::to_string(i)] = x0*y + y0*x;
+        }
+        
+        // setting the perturbed noise terms
+        for(int i = 0; i < abstract_value->m; i++)
+        {
+            x = 0;
+            y = 0;
+            if(op1->perturbedVector.find(std::to_string(i)) != op1->perturbedVector.end())
+                x = op1->perturbedVector[std::to_string(i)];
+            if(op2->perturbedVector.find(std::to_string(i)) != op2->perturbedVector.end())
+                y = op2->perturbedVector[(std::to_string(i))];
+            if(x0*y + y0*x != 0)
+                s->centralVector[std::to_string(i)] = x0*y + y0*x;
+        }
+
+        double x1 = 0;
+        double x2 = 0;
+        double y1 = 0;
+        double y2 = 0;
+
+        // adding the new noise term
+        for(int i = 1; i < abstract_value->n; i++)
+        {
+            x1 = 0;
+            y1 = 0;
+            if((op1->centralVector.find(std::to_string(i)) != op1->centralVector.end()) || (op2->centralVector.find(std::to_string(i)) != op2->centralVector.end()))
+            {
+                if(op1->centralVector.find(std::to_string(i)) != op1->centralVector.end())
+                    x1 = op1->centralVector[std::to_string(i)];
+                if(op2->centralVector.find(std::to_string(i)) != op2->centralVector.end())
+                    y1 = op2->centralVector[std::to_string(i)]; 
+                for(int j = i + 1; j < abstract_value->n; j++)
+                {
+                    x2 = 0;
+                    y2 = 0;
+                    if(op1->centralVector.find(std::to_string(j)) != op2->centralVector.end())
+                        x2 = op1->centralVector[std::to_string(j)];
+                    if(op2->centralVector.find(std::to_string(j)) != op2->centralVector.end())
+                        y2 = op2->centralVector[std::to_string(j)];
+                    
+                    new_term = new_term + abs(x1*y2 + x2*y1);
+                    
+                }
+            }
+        }
+        for(int i = 0; i < abstract_value->m; i++)
+        {
+            x1 = 0;
+            y1 = 0;
+            if((op1->perturbedVector.find(std::to_string(i)) != op1->perturbedVector.end()) || (op2->perturbedVector.find(std::to_string(i)) != op2->perturbedVector.end()))
+            {
+                if(op1->perturbedVector.find(std::to_string(i)) != op1->perturbedVector.end())
+                    x1 = op1->perturbedVector[std::to_string(i)];
+                if(op2->perturbedVector.find(std::to_string(i)) != op2->perturbedVector.end())
+                    y1 = op2->perturbedVector[std::to_string(i)];
+                for(int j = i + 1; j < abstract_value->n; j++)
+                {
+                    x2 = 0;
+                    y2 = 0;
+                    if(op1->perturbedVector.find(std::to_string(j)) != op2->perturbedVector.end())
+                        x2 = op1->perturbedVector[std::to_string(j)];
+                    if(op2->perturbedVector.find(std::to_string(j)) != op2->perturbedVector.end())
+                        y2 = op2->perturbedVector[std::to_string(j)];
+                    
+                    new_term = new_term + abs(x1*y2 + x2*y1);
+                    
+                }
+            }
+        }
+        if(new_term != 0)
+            s->perturbedVector[std::to_string(abstract_value->m)] = new_term;
+        return s;
+    }
+    
+    return topStackValue();
 }
 
 StackValue* Zonotope::evaluateUnaryOperation(std::string opcode, std::string return_type, StackValue* stack_value, AbstractValue* current_abstract_value)
@@ -608,24 +735,24 @@ ZonotopeAbstractValue* Zonotope::addVariableToAffineSet(ZonotopeStackValue* stVa
     }
     // setting the perturbed matrix
     // obtaining the highest degree of perturbation noise symbol
-    max1 = 0;
+    max1 = -1;
     // finding the max perturbed noise symbol
     if(stValue->perturbedVector.rbegin() != stValue->perturbedVector.rend())
     {
         if(std::stoi(stValue->perturbedVector.rbegin()->first) > max1)
             max1 = std::stoi(stValue->perturbedVector.rbegin()->first);
     }
-
-
     if(max1 > 0 && abValue->m != 0 && (max1 - abValue->m > 0))
         abValue->perturbedMatrix.insert_rows(abValue->m, max1 - abValue->m);
-
+    else if(max1 == 0 && abValue->m == 0)
+        abValue->perturbedMatrix.insert_rows(0, max1 - abValue->m + 1);
     else if(max1 > 0 && abValue->m == 0 && (max1 - abValue->m > 0))
         abValue->perturbedMatrix.insert_rows(0, max1 - abValue->m);
 
+
     for(auto itr = stValue->perturbedVector.begin(); itr != stValue->perturbedVector.end(); ++itr)
     {
-        abValue->perturbedMatrix(std::stoi(itr->first)-1,stValue->varPos) = itr->second;
+        abValue->perturbedMatrix(std::stoi(itr->first),stValue->varPos) = itr->second;
     }
     // augmenting the vector of constraints
     if(abValue->perturbedMatrix.n_rows > abValue->m)
@@ -636,6 +763,9 @@ ZonotopeAbstractValue* Zonotope::addVariableToAffineSet(ZonotopeStackValue* stVa
     }
 
     abValue->flag = a_NONE;
+    abValue->n = abValue->centralMatrix.n_rows;
+    abValue->m = abValue->perturbedMatrix.n_rows;
+    abValue->p = abValue->centralMatrix.n_cols;
     return abValue;
     // Included the perturbed form as well
 }
