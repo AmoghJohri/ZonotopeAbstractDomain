@@ -209,6 +209,7 @@ AbstractValue* Zonotope::copyAbstractValue(AbstractValue* abstract_value) // mak
     return x;
 }
 
+// just sends out the abstract_value_2
 AbstractValue* Zonotope::meet(AbstractValue* abstract_value_1, AbstractValue* abstract_value_2)
 {
     std::cout << "I am in Zonotope::meet" << std::endl;
@@ -216,7 +217,7 @@ AbstractValue* Zonotope::meet(AbstractValue* abstract_value_1, AbstractValue* ab
     ZonotopeAbstractValue *op2 = (ZonotopeAbstractValue*) abstract_value_2;
     ZonotopeAbstractValue *result = new ZonotopeAbstractValue;
 
-    // Do meet operation on op1 and op2 to get result.
+    result = (ZonotopeAbstractValue*) copyAbstractValue(abstract_value_2);
 
     return result;
 }
@@ -230,6 +231,8 @@ AbstractValue* Zonotope::join(AbstractValue* abstract_value_1, AbstractValue* ab
 
     // Do join operation on op1 and op2 to get result.
 
+    result = componentWiseJoin(op1,op2);
+    //printAbstractValue(result);
     return result;
 }
 
@@ -622,11 +625,56 @@ StackValue* Zonotope::castStackValue(std::string src_type, std::string dest_type
 
 std::pair<AbstractValue*, AbstractValue*> Zonotope::assumeConstraint(std::string opcode, StackValue* lhs_stack_value, StackValue* rhs_stack_value, AbstractValue* current_abstract_value)
 {
-    std::cout << "I am in Zonotope::assumeConstrain" << std::endl;
+    std::cout << "I am in Zonotope::assumeConstraint" << std::endl;
     ZonotopeStackValue *lhs = (ZonotopeStackValue*) lhs_stack_value;
     ZonotopeStackValue *rhs = (ZonotopeStackValue*) rhs_stack_value;
     ZonotopeAbstractValue *result_true = (ZonotopeAbstractValue*) copyAbstractValue(current_abstract_value);
     ZonotopeAbstractValue *result_false = (ZonotopeAbstractValue*) copyAbstractValue(current_abstract_value);
+
+    // the greater-equal case and the lesser-equal case are not being dealt seperately as of now
+
+    // haven't changed the false branch as of now
+
+    if(strcmp(opcode.c_str(),"<") == 0) // lhs_stack_value is less than rhs_stack_value
+    {
+        int trueIsBot = 0;
+        int falseIsBot = 0;
+        std::vector<std::pair<double,double>> constraintOverCentralMatrix; // saves the constains over Cx
+        std::vector<std::pair<double,double>> constraintOverPerturbedMatrix; // saves the constains over Px
+        std::pair<double,double> p;
+        for(int i = 1; i < result_true->n; i++)
+        {
+            if(trueIsBot == 1)
+                break;
+            p = getConstraint(0,i,lhs,rhs,result_true);
+            if(p.second < p.first)
+                trueIsBot = 1;
+            constraintOverCentralMatrix.push_back(p);
+        }
+        for(int i = 0; i < result_true->m; i++)
+        {
+            if(trueIsBot == 1)
+                break;
+            p = getConstraint(1,i,lhs,rhs,result_true);
+            if(p.second < p.first)
+                trueIsBot = 1;
+            constraintOverPerturbedMatrix.push_back(p);
+        }
+        if(trueIsBot == 0)
+        {
+            result_true->constraintOverCentralMatrix = constraintOverCentralMatrix;
+            result_true->constraintOverPerturbedMatrix = constraintOverPerturbedMatrix;
+        }
+        else
+        {
+            result_true = (ZonotopeAbstractValue*) botValue();
+        }
+    }
+    else if(strcmp(opcode.c_str(),">") == 0)
+    {
+        return assumeConstraint("<",rhs_stack_value,lhs_stack_value,current_abstract_value);
+    }
+
 
     // Add the constraint lhs opcode rhs to result_true
     // Add the constraint !(lhs opcode rhs) to result_false
@@ -684,6 +732,8 @@ ZonotopeAbstractValue* Zonotope::addVariableToAffineSet(ZonotopeStackValue* stVa
 {
     std::cout << "I am in Zonotope::addVariableToAffineSet" << std::endl;
     // if stack value is neither a top or a bot
+    if(stValue->flag == s_TOP)
+        return abValue;
 
     // augmenting cols in the central and perturbed matrices
     if(abValue->affineSet.find(stValue->varName) == abValue->affineSet.end()) // if the variable is not already present
@@ -836,3 +886,230 @@ bool Zonotope::checkOverflow(std::string datatype, std::pair<T1, T2> interval) /
     else return false;
 }
 
+double Zonotope::argmin(double a, double b) // gives the min. interval length in which both a and b can be covered
+{
+    return abs(std::max(a,b) - std::min(a,b));
+}
+
+ZonotopeStackValue* Zonotope::oneDimensionalJoin(ZonotopeStackValue* s1, ZonotopeAbstractValue* a1, ZonotopeStackValue* s2, ZonotopeAbstractValue* a2, int counter) // performs a one-dimensional join and returns the pointer to the resulting ZonotopeStackValue
+{
+    std::cout << "I am in Zonotope::oneDimensionalJoin" << std::endl;
+    // counter is incremented depending upon how many times the function is called in order to maintain the uniqueness in the affine symbols
+    //std::cout << s1->flag << std::endl << s2->flag << std::endl << a1->flag << std::endl << a2->flag << std::endl;
+    // considering the cases with TOP values
+    if(a1->flag == a_TOP || a2->flag == a_TOP) // if the either of the Affine sets are empty
+        return topStackValue();
+    if((a1->affineSet.find(s1->varName) == a1->affineSet.end()) || (a2->affineSet.find(s2->varName) == a2->affineSet.end())) // if either of the variables are TOP
+        return topStackValue();   
+    if(s1->varName.compare(s2->varName) != 0) // if both variables are different, this does not join
+        return topStackValue();
+
+    // considering the cases with BOT values
+    if(a1->flag == a_BOT && a2->flag == a_BOT)
+        return botStackValue();
+    else if(a1->flag == a_BOT) // if only a1 is BOT
+    {
+        if(a2->affineSet.find(s2->varName) != a2->affineSet.end())
+            return s2;
+        else
+            return topStackValue();
+    }
+    else if(a2->flag == a_BOT)
+    {
+        if(a1->affineSet.find(s1->varName) != a1->affineSet.end())
+            return s1;
+        else
+            return topStackValue();
+    }
+
+    // if none of the values are TOP or BOT and both the variables exist
+    else
+    {
+        // forming the required vectors
+        arma::Col<double> cx = a1->centralMatrix.col(s1->varPos);
+        arma::Col<double> px = a1->perturbedMatrix.col(s1->varPos);
+        arma::Col<double> cy = a2->centralMatrix.col(s2->varPos);
+        arma::Col<double> py = a2->perturbedMatrix.col(s2->varPos);
+
+        arma::Col<double> cz = arma::zeros(std::max(cx.n_rows, cy.n_rows));
+        arma::Col<double> pz = arma::zeros(std::max(px.n_rows, py.n_rows) + counter);
+
+        
+        // setting the central term
+        cz[0] = (std::max(concretize(s1, a1).second, concretize(s2,a1).second) + std::min(concretize(s1,a1).first, concretize(s2,a2).first))*(0.5);
+        
+        // setting the central noise terms
+        int i = 0;
+        for(i = 1; i < std::min(cx.n_rows, cy.n_rows); i++)
+            cz[i] = argmin(cx[i], cy[i]);
+
+        if(cx.n_rows > cy.n_rows)
+        {
+            for(;i<cx.n_rows;i++)
+                cz[i] = cx[i];
+        }
+        else if(cy.n_rows > cx.n_rows)
+        {
+            for(;i<cy.n_rows;i++)
+                cz[i] = cy[i];
+        }
+
+        // setting the perturbed noise terms
+        for(i = 0; i < std::min(px.n_rows, py.n_rows); i++)
+            pz[i] = argmin(px[i], py[i]);
+        
+        if(px.n_rows > py.n_rows)
+        {
+            for(;i<px.n_rows;i++)
+                pz[i] = px[i];
+        }
+        else if(py.n_rows > px.n_rows)
+        {
+            for(;i<py.n_rows;i++)
+                pz[i] = py[i];
+        }
+
+        // additional noise terms
+        double z0 = std::max(concretize(s1,a1).second, concretize(s2,a2).second) - cz[0];
+        for(int i = 1; i < cz.n_rows; i++)
+            z0 = z0 - abs(cz[i]);
+        for(int i = 0; i < pz.n_rows; i++)
+            z0 = z0 - abs(pz[i]);
+        
+        // making the output stackValue
+        ZonotopeStackValue* z = new ZonotopeStackValue;
+        z->varName = s1->varName;
+        z->varPos = counter;
+        z->flag = s_NONE;
+        for(int i = 0; i < cz.n_rows; i++)
+        {
+            if(cz[i] != 0)
+                z->centralVector[std::to_string(i)] = cz[i];
+        }
+
+        for(int i = 0; i < (pz.n_rows - 1); i++)
+        {
+            if(pz[i] != 0)
+                z->perturbedVector[std::to_string(i)] = pz[i];
+        }
+        
+        if(z0 != 0)
+            z->perturbedVector[std::to_string(i)] = z0;
+        return z;
+
+    }
+
+    return topStackValue();
+}
+
+ZonotopeAbstractValue* Zonotope::componentWiseJoin(ZonotopeAbstractValue* X, ZonotopeAbstractValue* Y) // finds the component wise join using the one dimensional join
+{
+    std::cout << "I am in Zonotope::componentWiseJoin" << std::endl;
+    // cases where one of the values is top
+    if(X->flag == a_TOP || Y->flag == a_TOP)
+        return (ZonotopeAbstractValue*) topValue();
+    
+    // cases where one of the values are bot
+    if(X->flag == a_BOT && Y->flag == a_BOT)
+        return (ZonotopeAbstractValue*) botValue();
+    else if(X->flag == a_BOT)
+        return Y;
+    else if(Y->flag == a_BOT)
+        return X;
+
+    // cases where both the affineSets have the flag = NONE
+    ZonotopeAbstractValue* Z = new ZonotopeAbstractValue;
+    Z->affineSetName = X->affineSetName;
+    Z->flag = a_NONE;
+    int counter = 1;
+    for(auto itr1 = X->affineSet.begin(); itr1 != X->affineSet.end(); ++itr1)
+    {
+        if(Y->affineSet.find(itr1->first) != Y->affineSet.end())
+        {
+            addVariableToAffineSet(oneDimensionalJoin(itr1->second, X, Y->affineSet[(itr1->first)], Y, counter),Z);
+            counter = counter + 1;
+        }
+    }
+    return Z;
+}
+
+std::pair<double, double> Zonotope::getConstraint(int CorP, int pos, ZonotopeStackValue* lhs, ZonotopeStackValue* rhs, ZonotopeAbstractValue* a)
+{
+    std::cout << "I am in Zonotope::getConstraint" << std::endl;
+    // gets the constraint for the the case lhs < rhs
+    // CorP = 0 - constraint on central, CorP = 1 - constraint on perturbed
+
+    arma::Col<double> Cx = (a->centralMatrix.col(lhs->varPos)) - (a->centralMatrix.col(rhs->varPos));
+    arma::Col<double> Px = (a->perturbedMatrix.col(lhs->varPos)) - (a->perturbedMatrix.col(rhs->varPos));
+
+    if(Cx[pos] == 0 && CorP == 0)
+        return std::make_pair(-1,1);
+    else if(Px[pos] == 0 && CorP == 1)
+        return std::make_pair(-1,1);
+    else
+    {
+        double output = -1*Cx[0];
+        if((Cx[pos] < 0 && CorP == 0) || (Px[pos] < 0 && CorP == 1)) // then we minimize the numerator
+        {
+            for(int i = 1; i < Cx.n_rows; i++)
+            {
+                if(i == pos && CorP == 0)
+                    continue;
+                if(Cx[i] < 0)
+                    output = output + Cx[i]*a->constraintOverCentralMatrix[i-1].second;
+                else    
+                    output = output + Cx[i]*a->constraintOverCentralMatrix[i-1].first;
+            }
+            for(int i = 0; i < Px.n_rows; i++)
+            {
+                if(i == pos && CorP == 1)
+                    continue;
+                if(Px[i] < 0)
+                    output = output + Px[i]*a->constraintOverPerturbedMatrix[i].second;
+                else    
+                    output = output + Px[i]*a->constraintOverPerturbedMatrix[i].first;
+            }
+        }
+        else // we maximize the numerator
+        {
+            for(int i = 1; i < Cx.n_rows; i++)
+            {
+                if(i == pos && CorP == 0)
+                    continue;
+                if(Cx[i] < 0)
+                    output = output + Cx[i]*a->constraintOverCentralMatrix[i-1].first;
+                else    
+                    output = output + Cx[i]*a->constraintOverCentralMatrix[i-1].second;
+            }
+            for(int i = 0; i < Px.n_rows; i++)
+            {
+                if(i == pos && CorP == 1)
+                    continue;
+                if(Px[i] < 0)
+                    output = output + Px[i]*a->constraintOverPerturbedMatrix[i].first;
+                else    
+                    output = output + Px[i]*a->constraintOverPerturbedMatrix[i].second;
+            }
+        }
+
+        if(CorP == 0)
+            output = output / Cx[pos];
+        else
+            output = output / Px[pos];
+
+        if(output < 1)
+            return std::make_pair(-1,output);
+        else
+            return std::make_pair(-1,1);
+    }
+    return std::make_pair(-1,1);
+}
+
+std::pair<double,double> Zonotope::intervalMeet(std::pair<double,double> p1, std::pair<double,double> p2)
+{
+    // considering the cases where the meet gives an impossible value
+    if((p1.second < p2.first) || (p2.second < p1.first))
+        return std::make_pair(1,-1);
+    // considering the case where one is a subset of the other
+    return std::make_pair(std::max(p1.first, p2.first), std::min(p1.second, p2.second));
+}

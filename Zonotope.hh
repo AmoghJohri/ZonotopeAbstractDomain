@@ -113,6 +113,8 @@ public:
     ZonotopeAbstractValue* addVariableToAffineSet(ZonotopeStackValue*, ZonotopeAbstractValue*); // adds a variable to the affineSet
     ZonotopeAbstractValue* removeStackValue(ZonotopeAbstractValue* , int); // removes a variable from the affineSet
 
+    ZonotopeStackValue* oneDimensionalJoin(ZonotopeStackValue*, ZonotopeAbstractValue*, ZonotopeStackValue*, ZonotopeAbstractValue*, int); // performs a one dimensional join and returns the pointer to the resulting StackValue;
+    ZonotopeAbstractValue* componentWiseJoin(ZonotopeAbstractValue*, ZonotopeAbstractValue*); // performs component-wise join using oneDimensionalJoin
     ZonotopeStackValue* botStackValue(); // returns a BOT stackValue
     ZonotopeStackValue* topStackValue(); // returns a TOP stackVaue
 
@@ -122,6 +124,10 @@ public:
     template <typename T1, typename T2, typename T3, typename T4>
     bool intervalCompare(std::pair<T1,T2>, std::pair<T3,T4>); // compares between two intervals whether one fits within the other or not
     
+    double argmin(double, double); // gives the min interval length in which both values can be contained
+    std::pair<double, double> getConstraint(int, int, ZonotopeStackValue*, ZonotopeStackValue*, ZonotopeAbstractValue*);
+
+    std::pair<double,double> intervalMeet(std::pair<double,double>, std::pair<double,double>);
 
 };    
 
