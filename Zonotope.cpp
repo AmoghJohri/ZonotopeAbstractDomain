@@ -147,6 +147,7 @@ void Zonotope::printStackValue(ZonotopeStackValue* stackValue) // pretty-prints 
         for(itr = stackValue->perturbedVector.begin(); itr!= stackValue->perturbedVector.end(); ++itr)// printing the perturved noise terms
             std::cout << " + " << itr->second << "n" << itr->first;
         std::cout << std::endl;
+        std::cout << "Position in the matrix : " << stackValue->varPos << std::endl;
     }
 }
 ZonotopeStackValue* Zonotope::copyStackValue(ZonotopeStackValue* s) // takes a stack value, copies it and returns a pointer to the copy
@@ -327,13 +328,11 @@ StackValue* Zonotope::getStackValueOfVariable(std::string variableName, std::str
     std::cout << "I am in Zonotope::getStackValueOfVariable" << std::endl;
     ZonotopeStackValue *s = new ZonotopeStackValue;
     ZonotopeAbstractValue *currentAbstractValue = (ZonotopeAbstractValue*) current_abstract_value;
-
     // result = stackvalue of the variable.
 
     // looks in the affine_set for the required variable
     // if the variable is not present, returns TOP
-    auto itr = currentAbstractValue->affineSet.find(variableName);
-
+    auto itr = currentAbstractValue->affineSet.find(variableName);  
     if(itr == currentAbstractValue->affineSet.end()) // if the variable is not present in the affine-set
     {
         s->flag = s_TOP;
@@ -711,14 +710,15 @@ std::pair<double, double> Zonotope::concretize(ZonotopeStackValue* s, ZonotopeAb
     {
         if(itr->second > 0)
         {
-            ldev = ldev + itr->second*a->constraintOverPerturbedMatrix[std::stoi(itr->first) - 1].first;
-            rdev = rdev + itr->second*a->constraintOverPerturbedMatrix[std::stoi(itr->first) - 1].second;
+            ldev = ldev + itr->second*a->constraintOverPerturbedMatrix[std::stoi(itr->first)].first;
+            rdev = rdev + itr->second*a->constraintOverPerturbedMatrix[std::stoi(itr->first)].second;
         }
         else 
         {
-            ldev = ldev + itr->second*a->constraintOverPerturbedMatrix[std::stoi(itr->first) - 1].second;
-            rdev = rdev + itr->second*a->constraintOverPerturbedMatrix[std::stoi(itr->first) - 1].first; 
+            ldev = ldev + itr->second*a->constraintOverPerturbedMatrix[std::stoi(itr->first)].second;
+            rdev = rdev + itr->second*a->constraintOverPerturbedMatrix[std::stoi(itr->first)].first; 
         }
+        
     }
     double x;
     if(s->centralVector.find("0") != s->centralVector.end())
@@ -731,6 +731,7 @@ std::pair<double, double> Zonotope::concretize(ZonotopeStackValue* s, ZonotopeAb
 ZonotopeAbstractValue* Zonotope::addVariableToAffineSet(ZonotopeStackValue* stValue, ZonotopeAbstractValue* abValue) // takes a pointer to a stack value and abstract value and adds the stack value to the affine set
 {
     std::cout << "I am in Zonotope::addVariableToAffineSet" << std::endl;
+
     // if stack value is neither a top or a bot
     if(stValue->flag == s_TOP)
         return abValue;
@@ -738,6 +739,7 @@ ZonotopeAbstractValue* Zonotope::addVariableToAffineSet(ZonotopeStackValue* stVa
     // augmenting cols in the central and perturbed matrices
     if(abValue->affineSet.find(stValue->varName) == abValue->affineSet.end()) // if the variable is not already present
     {
+        abValue->affineSet[stValue->varName] = copyStackValue(stValue);
         abValue->centralMatrix.insert_cols(abValue->p,1);
         abValue->perturbedMatrix.insert_cols(abValue->p,1);
         stValue->varPos = abValue->p;
@@ -747,7 +749,6 @@ ZonotopeAbstractValue* Zonotope::addVariableToAffineSet(ZonotopeStackValue* stVa
     {
         stValue->varPos = abValue->affineSet[stValue->varName]->varPos;
     }
-    
     
     // setting the central matrix
     // obtaining the highest degree of central noise symbol
@@ -767,12 +768,13 @@ ZonotopeAbstractValue* Zonotope::addVariableToAffineSet(ZonotopeStackValue* stVa
 
     else if((max1 == 0) && (abValue->n == 0)) // adding a literal variable
         abValue->centralMatrix.insert_rows(0, 1);
-
+   
     // adding terms in the central matrix;
     for(auto itr = stValue->centralVector.begin(); itr != stValue->centralVector.end(); ++itr)
     {
         abValue->centralMatrix(std::stoi(itr->first),stValue->varPos) = itr->second;      
     }
+
     // augmenting the vector of constraints
     int c = abValue->constraintOverCentralMatrix.size();
     if(abValue->centralMatrix.n_rows > abValue->n)
@@ -783,6 +785,7 @@ ZonotopeAbstractValue* Zonotope::addVariableToAffineSet(ZonotopeStackValue* stVa
             abValue->constraintOverCentralMatrix.push_back(std::make_pair(-1,1)); 
         }
     }
+
     // setting the perturbed matrix
     // obtaining the highest degree of perturbation noise symbol
     max1 = -1;
@@ -793,17 +796,18 @@ ZonotopeAbstractValue* Zonotope::addVariableToAffineSet(ZonotopeStackValue* stVa
             max1 = std::stoi(stValue->perturbedVector.rbegin()->first);
     }
     if(max1 > 0 && abValue->m != 0 && (max1 - abValue->m > 0))
-        abValue->perturbedMatrix.insert_rows(abValue->m, max1 - abValue->m);
+        abValue->perturbedMatrix.insert_rows(abValue->m, max1 - abValue->m + 1);
     else if(max1 == 0 && abValue->m == 0)
         abValue->perturbedMatrix.insert_rows(0, max1 - abValue->m + 1);
     else if(max1 > 0 && abValue->m == 0 && (max1 - abValue->m > 0))
-        abValue->perturbedMatrix.insert_rows(0, max1 - abValue->m);
-
+        abValue->perturbedMatrix.insert_rows(0, max1 - abValue->m + 1);
+    
 
     for(auto itr = stValue->perturbedVector.begin(); itr != stValue->perturbedVector.end(); ++itr)
     {
         abValue->perturbedMatrix(std::stoi(itr->first),stValue->varPos) = itr->second;
     }
+    
     // augmenting the vector of constraints
     if(abValue->perturbedMatrix.n_rows > abValue->m)
     {
@@ -979,7 +983,7 @@ ZonotopeStackValue* Zonotope::oneDimensionalJoin(ZonotopeStackValue* s1, Zonotop
         // making the output stackValue
         ZonotopeStackValue* z = new ZonotopeStackValue;
         z->varName = s1->varName;
-        z->varPos = counter;
+        z->varPos = counter - 1;
         z->flag = s_NONE;
         for(int i = 0; i < cz.n_rows; i++)
         {
@@ -1030,6 +1034,7 @@ ZonotopeAbstractValue* Zonotope::componentWiseJoin(ZonotopeAbstractValue* X, Zon
             counter = counter + 1;
         }
     }
+    
     return Z;
 }
 
@@ -1040,7 +1045,7 @@ std::pair<double, double> Zonotope::getConstraint(int CorP, int pos, ZonotopeSta
     // CorP = 0 - constraint on central, CorP = 1 - constraint on perturbed
 
     arma::Col<double> Cx = (a->centralMatrix.col(lhs->varPos)) - (a->centralMatrix.col(rhs->varPos));
-    arma::Col<double> Px = (a->perturbedMatrix.col(lhs->varPos)) - (a->perturbedMatrix.col(rhs->varPos));
+    arma::Col<double> Px = (a->perturbedMatrix.col(lhs->varPos)) - (a->perturbedMatrix.col(rhs->varPos));    
 
     if(Cx[pos] == 0 && CorP == 0)
         return std::make_pair(-1,1);
