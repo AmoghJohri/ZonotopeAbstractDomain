@@ -128,6 +128,7 @@ public:
     std::pair<double, double> getConstraint(int, int, ZonotopeStackValue*, ZonotopeStackValue*, ZonotopeAbstractValue*);
 
     std::pair<double,double> intervalMeet(std::pair<double,double>, std::pair<double,double>);
+    bool compareStackValues(ZonotopeStackValue*, ZonotopeStackValue*);
 
 };    
 

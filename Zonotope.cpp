@@ -217,8 +217,32 @@ AbstractValue* Zonotope::meet(AbstractValue* abstract_value_1, AbstractValue* ab
     ZonotopeAbstractValue *op1 = (ZonotopeAbstractValue*) abstract_value_1;
     ZonotopeAbstractValue *op2 = (ZonotopeAbstractValue*) abstract_value_2;
     ZonotopeAbstractValue *result = new ZonotopeAbstractValue;
+    
+    if(op1->flag == a_TOP)    
+        result = (ZonotopeAbstractValue*) copyAbstractValue(abstract_value_2);
+    if(op2->flag == a_TOP)
+        result = (ZonotopeAbstractValue*) copyAbstractValue(abstract_value_1);
 
-    result = (ZonotopeAbstractValue*) copyAbstractValue(abstract_value_2);
+    if(op1->flag == a_BOT || op2->flag == a_BOT)
+        return botValue();
+
+    for(auto itr = op1->affineSet.begin(); itr != op1->affineSet.end(); ++itr)
+    {
+        int v1 = (itr->second)->varPos;
+        if(op2->affineSet.find(itr->first) != op2->affineSet.end()) // if the variable is present in the affine_set
+        {
+            int v2 = (op2->affineSet)[itr->first]->varPos;
+            addVariableToAffineSet(copyStackValue(itr->second), result);
+            for(int i = 1; i < result->n; i++)
+                result->constraintOverCentralMatrix[i-1] = intervalMeet(op1->constraintOverCentralMatrix[v1 - 1], op2->constraintOverCentralMatrix[v2 - 1]);
+
+            for(int i = 0; i < result->m; i++)
+                result->constraintOverPerturbedMatrix[i] = intervalMeet(op1->constraintOverPerturbedMatrix[v1 - 1], op2->constraintOverPerturbedMatrix[v2 - 1]);
+
+        }
+        //std::cout << "OOga Booga Nigga Nigga " << std:: endl;
+        //printAbstractValue(result);
+    }
 
     return result;
 }
@@ -519,7 +543,7 @@ StackValue* Zonotope::evaluateBinaryOperation(std::string opcode, std::string re
             if(op2->perturbedVector.find(std::to_string(i)) != op2->perturbedVector.end())
                 y = op2->perturbedVector[(std::to_string(i))];
             if(x0*y + y0*x != 0)
-                s->centralVector[std::to_string(i)] = x0*y + y0*x;
+                s->perturbedVector[std::to_string(i)] = x0*y + y0*x;
         }
 
         double x1 = 0;
@@ -578,6 +602,7 @@ StackValue* Zonotope::evaluateBinaryOperation(std::string opcode, std::string re
         }
         if(new_term != 0)
             s->perturbedVector[std::to_string(abstract_value->m)] = new_term;
+        
         return s;
     }
     
@@ -696,13 +721,13 @@ std::pair<double, double> Zonotope::concretize(ZonotopeStackValue* s, ZonotopeAb
         
         if(itr->second > 0)
         {
-            ldev = ldev + itr->second*a->constraintOverCentralMatrix[std::stoi(itr->first) - 1].first;
-            rdev = rdev + itr->second*a->constraintOverCentralMatrix[std::stoi(itr->first) - 1].second;
+            ldev = ldev + itr->second*a->constraintOverCentralMatrix[std::stoi(itr->first) ].first;
+            rdev = rdev + itr->second*a->constraintOverCentralMatrix[std::stoi(itr->first) ].second;
         }
         else 
         {
-            ldev = ldev + itr->second*a->constraintOverCentralMatrix[std::stoi(itr->first) - 1].second;
-            rdev = rdev + itr->second*a->constraintOverCentralMatrix[std::stoi(itr->first) - 1].first; 
+            ldev = ldev + itr->second*a->constraintOverCentralMatrix[std::stoi(itr->first) ].second;
+            rdev = rdev + itr->second*a->constraintOverCentralMatrix[std::stoi(itr->first) ].first; 
         }
     }
 
@@ -731,7 +756,7 @@ std::pair<double, double> Zonotope::concretize(ZonotopeStackValue* s, ZonotopeAb
 ZonotopeAbstractValue* Zonotope::addVariableToAffineSet(ZonotopeStackValue* stValue, ZonotopeAbstractValue* abValue) // takes a pointer to a stack value and abstract value and adds the stack value to the affine set
 {
     std::cout << "I am in Zonotope::addVariableToAffineSet" << std::endl;
-
+    
     // if stack value is neither a top or a bot
     if(stValue->flag == s_TOP)
         return abValue;
@@ -789,25 +814,25 @@ ZonotopeAbstractValue* Zonotope::addVariableToAffineSet(ZonotopeStackValue* stVa
     // setting the perturbed matrix
     // obtaining the highest degree of perturbation noise symbol
     max1 = -1;
+
     // finding the max perturbed noise symbol
     if(stValue->perturbedVector.rbegin() != stValue->perturbedVector.rend())
     {
         if(std::stoi(stValue->perturbedVector.rbegin()->first) > max1)
             max1 = std::stoi(stValue->perturbedVector.rbegin()->first);
     }
-    if(max1 > 0 && abValue->m != 0 && (max1 - abValue->m > 0))
-        abValue->perturbedMatrix.insert_rows(abValue->m, max1 - abValue->m + 1);
+
+    if(max1 > 0 && abValue->m != 0 && (max1 - abValue->m >= 0))
+        abValue->perturbedMatrix.insert_rows(abValue->m, (max1 - abValue->m) + 1);
     else if(max1 == 0 && abValue->m == 0)
         abValue->perturbedMatrix.insert_rows(0, max1 - abValue->m + 1);
     else if(max1 > 0 && abValue->m == 0 && (max1 - abValue->m > 0))
         abValue->perturbedMatrix.insert_rows(0, max1 - abValue->m + 1);
     
-
     for(auto itr = stValue->perturbedVector.begin(); itr != stValue->perturbedVector.end(); ++itr)
     {
         abValue->perturbedMatrix(std::stoi(itr->first),stValue->varPos) = itr->second;
     }
-    
     // augmenting the vector of constraints
     if(abValue->perturbedMatrix.n_rows > abValue->m)
     {
@@ -892,12 +917,21 @@ bool Zonotope::checkOverflow(std::string datatype, std::pair<T1, T2> interval) /
 
 double Zonotope::argmin(double a, double b) // gives the min. interval length in which both a and b can be covered
 {
-    return abs(std::max(a,b) - std::min(a,b));
+    if(a*b < 0) // that is if they lie on either side of zero
+        return 0;
+    else if(a >0 && b > 0)
+        return std::min(a,b);
+    else
+        return std::max(a,b);
 }
 
 ZonotopeStackValue* Zonotope::oneDimensionalJoin(ZonotopeStackValue* s1, ZonotopeAbstractValue* a1, ZonotopeStackValue* s2, ZonotopeAbstractValue* a2, int counter) // performs a one-dimensional join and returns the pointer to the resulting ZonotopeStackValue
 {
     std::cout << "I am in Zonotope::oneDimensionalJoin" << std::endl;
+
+    if(compareStackValues(s1,s2)) // if both the stack values are equal, just out put it as it is
+        return copyStackValue(s1);
+
     // counter is incremented depending upon how many times the function is called in order to maintain the uniqueness in the affine symbols
     //std::cout << s1->flag << std::endl << s2->flag << std::endl << a1->flag << std::endl << a2->flag << std::endl;
     // considering the cases with TOP values
@@ -937,7 +971,6 @@ ZonotopeStackValue* Zonotope::oneDimensionalJoin(ZonotopeStackValue* s1, Zonotop
 
         arma::Col<double> cz = arma::zeros(std::max(cx.n_rows, cy.n_rows));
         arma::Col<double> pz = arma::zeros(std::max(px.n_rows, py.n_rows) + counter);
-
         
         // setting the central term
         cz[0] = (std::max(concretize(s1, a1).second, concretize(s2,a1).second) + std::min(concretize(s1,a1).first, concretize(s2,a2).first))*(0.5);
@@ -960,8 +993,10 @@ ZonotopeStackValue* Zonotope::oneDimensionalJoin(ZonotopeStackValue* s1, Zonotop
 
         // setting the perturbed noise terms
         for(i = 0; i < std::min(px.n_rows, py.n_rows); i++)
+        {
             pz[i] = argmin(px[i], py[i]);
-        
+        }
+
         if(px.n_rows > py.n_rows)
         {
             for(;i<px.n_rows;i++)
@@ -999,6 +1034,7 @@ ZonotopeStackValue* Zonotope::oneDimensionalJoin(ZonotopeStackValue* s1, Zonotop
         
         if(z0 != 0)
             z->perturbedVector[std::to_string(i)] = z0;
+
         return z;
 
     }
@@ -1044,11 +1080,43 @@ std::pair<double, double> Zonotope::getConstraint(int CorP, int pos, ZonotopeSta
     // gets the constraint for the the case lhs < rhs
     // CorP = 0 - constraint on central, CorP = 1 - constraint on perturbed
 
-    arma::Col<double> Cx = (a->centralMatrix.col(lhs->varPos)) - (a->centralMatrix.col(rhs->varPos));
-    arma::Col<double> Px = (a->perturbedMatrix.col(lhs->varPos)) - (a->perturbedMatrix.col(rhs->varPos));    
+    // case where both the terms are literals
+    if(lhs->varPos < 0 && rhs->varPos < 0)
+    {
+        if(lhs->centralVector["0"] < rhs->centralVector["0"])
+            return std::make_pair(-1,1);
+        return std::make_pair(1,-1);
+    }
+
+    arma::Col<double> Cx;
+    arma::Col<double> Px;
+
+    // case where rhs is a literal
+    if(lhs->varPos >= 0 && rhs->varPos < 0)
+    {
+        Cx = a->centralMatrix.col(lhs->varPos);
+        Px = a->perturbedMatrix.col(lhs->varPos);
+        Cx[0] = Cx[0] - rhs->centralVector["0"];
+        
+    }
+    else if(lhs->varPos < 0 && rhs->varPos >= 0)
+    {
+        
+        Cx = a->centralMatrix.col(rhs->varPos);
+        Px = a->perturbedMatrix.col(rhs->varPos);
+        Cx[0] = Cx[0] - lhs->centralVector["0"];
+    }
+    else
+    {
+
+        Cx = (a->centralMatrix.col(lhs->varPos)) - (a->centralMatrix.col(rhs->varPos));
+        Px = (a->perturbedMatrix.col(lhs->varPos)) - (a->perturbedMatrix.col(rhs->varPos));   
+    }
+
 
     if(Cx[pos] == 0 && CorP == 0)
         return std::make_pair(-1,1);
+
     else if(Px[pos] == 0 && CorP == 1)
         return std::make_pair(-1,1);
     else
@@ -1117,4 +1185,25 @@ std::pair<double,double> Zonotope::intervalMeet(std::pair<double,double> p1, std
         return std::make_pair(1,-1);
     // considering the case where one is a subset of the other
     return std::make_pair(std::max(p1.first, p2.first), std::min(p1.second, p2.second));
+}
+
+bool Zonotope::compareStackValues(ZonotopeStackValue* s1, ZonotopeStackValue* s2)
+{
+    if(s1->varName == s2->varName)
+    {
+        if(s1->varPos == s2->varPos)
+        {
+            if(s1->flag == s2->flag)
+            {
+                if(s1->centralVector == s2->centralVector)
+                {
+                    if(s1->perturbedVector == s2->perturbedVector)
+                    {
+                        return true;
+                    }
+                }
+            }
+        }
+    }
+    return false;
 }
