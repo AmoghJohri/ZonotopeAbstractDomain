@@ -8,6 +8,8 @@
 
 #include "AbstractDomain.hh"
 
+int randomControl = 0;
+
 enum stackValueFlag // for each stack value tells whether the affine-form corresponds to a TOP or BOT
 {
     s_BOT = -1, // when a stackValue is invalid
@@ -129,6 +131,7 @@ public:
 
     std::pair<double,double> intervalMeet(std::pair<double,double>, std::pair<double,double>);
     bool compareStackValues(ZonotopeStackValue*, ZonotopeStackValue*);
+    std::pair<double,double> complimentConstraint(std::pair<double,double>);
 
 };    
 

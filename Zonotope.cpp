@@ -229,10 +229,11 @@ AbstractValue* Zonotope::meet(AbstractValue* abstract_value_1, AbstractValue* ab
     for(auto itr = op1->affineSet.begin(); itr != op1->affineSet.end(); ++itr)
     {
         int v1 = (itr->second)->varPos;
-        if(op2->affineSet.find(itr->first) != op2->affineSet.end()) // if the variable is present in the affine_set
+        if(op2->affineSet.find(itr->first) != op2->affineSet.end()) // searches the other affine_set for the variable name and goes in the if block if the variable is present
         {
             int v2 = (op2->affineSet)[itr->first]->varPos;
             addVariableToAffineSet(copyStackValue(itr->second), result);
+
             for(int i = 1; i < result->n; i++)
                 result->constraintOverCentralMatrix[i-1] = intervalMeet(op1->constraintOverCentralMatrix[v1 - 1], op2->constraintOverCentralMatrix[v2 - 1]);
 
@@ -240,8 +241,6 @@ AbstractValue* Zonotope::meet(AbstractValue* abstract_value_1, AbstractValue* ab
                 result->constraintOverPerturbedMatrix[i] = intervalMeet(op1->constraintOverPerturbedMatrix[v1 - 1], op2->constraintOverPerturbedMatrix[v2 - 1]);
 
         }
-        //std::cout << "OOga Booga Nigga Nigga " << std:: endl;
-        //printAbstractValue(result);
     }
 
     return result;
@@ -256,14 +255,32 @@ AbstractValue* Zonotope::join(AbstractValue* abstract_value_1, AbstractValue* ab
 
     // Do join operation on op1 and op2 to get result.
 
+    if(op1->flag == a_BOT)
+        return op2;
+    else if(op2->flag == a_BOT)
+        return op1;
+    else if(op1->flag == a_TOP || op2->flag == a_TOP)
+    {
+        result->flag = a_TOP;
+        return result;
+    }
     result = componentWiseJoin(op1,op2);
-    //printAbstractValue(result);
+
+    randomControl = randomControl + 1;
+    printAbstractValue(result);
+
+    if(randomControl == 2)
+    {
+        std::cout << "I exited at line 276" << std::endl;
+        exit(0);
+    }
     return result;
 }
 
 AbstractValue* Zonotope::widen(AbstractValue* abstract_value_1, AbstractValue* abstract_value_2)
 {
     std::cout << "I am in Zonotope::widen" << std::endl;
+    
     ZonotopeAbstractValue *op1 = (ZonotopeAbstractValue*) abstract_value_1;
     ZonotopeAbstractValue *op2 = (ZonotopeAbstractValue*) abstract_value_2;
     ZonotopeAbstractValue *result = new ZonotopeAbstractValue;
@@ -276,9 +293,238 @@ AbstractValue* Zonotope::widen(AbstractValue* abstract_value_1, AbstractValue* a
 
 LatticeCompare Zonotope::compare(AbstractValue* abstract_value_1, AbstractValue* abstract_value_2)
 {
+
     std::cout << "I am in Zonotope::compare" << std::endl;
-    ZonotopeAbstractValue *op1 = (ZonotopeAbstractValue*) abstract_value_1;
-    ZonotopeAbstractValue *op2 = (ZonotopeAbstractValue*) abstract_value_2;
+
+    ZonotopeAbstractValue *abs1 = (ZonotopeAbstractValue*) abstract_value_1;
+    ZonotopeAbstractValue *abs2 = (ZonotopeAbstractValue*) abstract_value_2;
+
+    // checking for TOP and BOT combinations
+    if((abs1->flag != a_NONE) || (abs2->flag != a_NONE))
+    {
+        
+        if(abs2->flag == a_TOP)
+        {
+            std::cout << "LT" << std::endl;
+            return LT;
+        }
+        else if(abs2->flag == a_BOT)
+        {
+            std::cout << "GT" << std::endl;
+            return GT;
+        }
+        else if(abs1->flag == a_TOP)
+        {
+            std::cout << "LT" << std::endl;
+            return LT;
+        }
+        else if(abs1->flag == a_BOT)
+        {
+            std::cout << "GT" << std::endl;
+            return GT;
+        }
+            
+    }
+
+    // if neither of the two affine sets are TOP or BOT
+
+    int max_col = abs(abs1->p - abs2->p); // difference between the number of variables
+    int max_row_C = abs(abs1->n - abs2->n); // differnce between the number of central noise symbols
+    int max_row_P = abs(abs1->m - abs2->m); // difference between the number of perturbed noise symbols
+
+    // copies of the central Matrices
+    arma::Mat<double> Ca1 = abs1->centralMatrix; 
+    arma::Mat<double> Ca2 = abs2->centralMatrix;
+
+    // copies of the perturbed Matrices
+    arma::Mat<double> Pa1 = abs1->perturbedMatrix;
+    arma::Mat<double> Pa2 = abs2->perturbedMatrix;
+
+    // copies for the central contraint vectors
+    std::vector<std::pair<double,double>> Phi1CX = abs1->constraintOverCentralMatrix;
+    std::vector<std::pair<double,double>> Phi2CX = abs2->constraintOverCentralMatrix;
+
+    // copes for the perturbed constraint vectors
+    std::vector<std::pair<double,double>> Phi1PX = abs1->constraintOverPerturbedMatrix;
+    std::vector<std::pair<double,double>> Phi2PX = abs2->constraintOverPerturbedMatrix;
+
+    // making the number of cols equal in all the matrices
+    if(max_col != 0)
+    {
+        if(Ca1.n_cols < max_col + abs2->p)
+        {
+            Ca1.insert_cols(abs1->p, max_col);
+            Pa1.insert_cols(abs1->p, max_col);
+        }
+        else if(Ca2.n_cols < max_col + abs1->p)
+        {
+            Ca2.insert_cols(abs2->p, max_col);
+            Pa2.insert_cols(abs2->p, max_col);
+        }
+
+
+        // making the number of rows in Central matrix equal
+        if(Ca1.n_rows < max_row_C + abs2->n)
+        {
+            Ca1.insert_rows(abs1->p, max_row_C);
+            Phi1CX.insert(Phi1CX.end(), std::make_pair(-1.0,1.0));
+        }
+        else if(Ca2.n_rows < max_row_C + abs1->n)
+        {
+            Ca2.insert_rows(abs2->n, max_row_C);
+            Phi2CX.insert(Phi2CX.end(), std::make_pair(-1.0,1.0));
+        }
+
+        // making the number of rows in Perturbed matrix equal
+        if(Pa1.n_rows < max_row_P + abs1->m)
+        {
+            Pa1.insert_rows(abs1->m, max_row_P);
+            Phi1PX.insert(Phi1PX.end(), std::make_pair(-1.0,1.0));
+        }
+        else if(Pa2.n_rows < max_row_P, abs1->m)
+        {
+            Pa2.insert_rows(abs2->m, max_row_P);
+            Phi2PX.insert(Phi2PX.end(), std::make_pair(-1.0,1.0));
+        }
+    }
+    
+    
+
+    arma::arma_rng::set_seed_random(); // in order to generate random vectors
+    arma::Col<double> u; // random vector
+
+    // checking if abs1 <= abs2;
+    int counter = 0; // to control the number of checks
+    int tag = 0; // to see if the check fails
+    while (counter < 100)
+    {
+        // checking for the constraint domain
+        if(counter == 0)
+        {
+            for(int c = 0; c < Phi1CX.size(); c++)
+            {
+                if(!intervalCompare(Phi2CX[c], Phi1CX[c]))
+                {
+                    tag = 1;
+                    break;
+                }
+            }
+            for(int c = 0; c < Phi1PX.size(); c++)
+            {
+                if(!intervalCompare(Phi2PX[c], Phi1PX[c]))
+                {
+                    tag = 1;
+                    break;
+                }
+            }
+            if(tag == 1)
+                break;
+        }
+
+        u = arma::randn(Ca1.n_cols);
+
+        arma::Col<double> v = (Ca2 - Ca1)*u;
+        for(int i = 0; i < Phi1CX.size(); i++)
+            v(i) = v(i)* (std::max(abs(Phi1CX[i].first), abs(Phi1CX[i].second)));
+        double x = arma::accu(arma::abs(v));
+
+
+        double y = 0;
+        if(Pa2.n_rows != 0)
+            v = Pa2*u;
+            for(int i = 0; i < Phi2PX.size(); i++)
+                v(i) = v(i)* (std::max(abs(Phi2PX[i].first), abs(Phi2PX[i].second)));
+            y = arma::accu(arma::abs(v));
+        
+        
+        double z = 0;
+        if(Pa1.n_rows != 0)
+            v = Pa1*u;
+            for(int i = 0; i < Phi1PX.size(); i++)
+                v(i) = v(i)* (std::max(abs(Phi1PX[i].first), abs(Phi1PX[i].second)));
+            z = arma::accu(arma::abs(v));
+        x = x + z - y;
+
+        if(x > 0)
+        {
+            tag = 1;
+            break;
+        }
+        counter = counter + 1;
+    }
+    if(tag == 0)
+    {
+        std::cout << "LT" << std::endl;
+        return LT;
+    }
+    
+    // checking if abs2 <= abs1
+    counter = 0;
+    tag = 0;
+    while (counter < 100)
+    {
+
+        // checking for the constraint domain
+        if(counter == 0)
+        {
+            for(int c = 0; c < Phi2CX.size(); c++)
+            {
+                if(!intervalCompare(Phi1CX[c], Phi2CX[c]))
+                {
+                    tag = 1;
+                    break;
+                }
+            }
+            for(int c = 0; c < Phi2PX.size(); c++)
+            {
+                if(!intervalCompare(Phi1PX[c], Phi2PX[c]))
+                {
+                    tag = 1;
+                    break;
+                }
+            }
+            if(tag == 1)
+                break;
+        }
+
+        u = arma::randn(Ca1.n_cols);
+
+        arma::Col<double> v = (Ca2 - Ca1)*u;
+        for(int i = 0; i < Phi2CX.size(); i++)
+            v(i) = v(i)* (std::max(abs(Phi2CX[i].first), abs(Phi2CX[i].second)));
+        double x = arma::accu(arma::abs(v));
+
+
+        double y = 0;
+        if(Pa2.n_rows != 0)
+            v = Pa2*u;
+            for(int i = 0; i < Phi2PX.size(); i++)
+                v(i) = v(i)* (std::max(abs(Phi2PX[i].first), abs(Phi2PX[i].second)));
+            y = arma::accu(arma::abs(v));
+        
+        
+        double z = 0;
+        if(Pa1.n_rows != 0)
+            v = Pa1*u;
+            for(int i = 0; i < Phi1PX.size(); i++)
+                v(i) = v(i)* (std::max(abs(Phi1PX[i].first), abs(Phi1PX[i].second)));
+            z = arma::accu(arma::abs(v));
+        x = x - z  + y;
+       
+        if(x > 0)
+        {
+            tag = 1;
+            break;
+        }
+        counter = counter + 1;
+    }
+    if(tag == 0)
+    {
+        std::cout << "GT" << std::endl;
+        return GT;
+    }
+    std::cout << "UC" << std::endl;
+    return UC;
 
     // Compare op1 and op2 and return the result.
     // if op1 == op2, return EQ
@@ -657,43 +903,171 @@ std::pair<AbstractValue*, AbstractValue*> Zonotope::assumeConstraint(std::string
 
     // the greater-equal case and the lesser-equal case are not being dealt seperately as of now
 
-    // haven't changed the false branch as of now
+    // getting lhs-rhs before starting the evaluation
+    
 
     if(strcmp(opcode.c_str(),"<") == 0) // lhs_stack_value is less than rhs_stack_value
     {
+
+        
+        ZonotopeStackValue *use = new ZonotopeStackValue;
+        use->varName = "USE";
+        use->varPos = -10;
+        use->flag = s_NONE;
+        use->centralVector = lhs->centralVector;
+        use->perturbedVector = lhs->perturbedVector;
+
+        ZonotopeStackValue *zero = new ZonotopeStackValue;
+        zero->varName = "ZERO";
+        zero->varPos = -11;
+        zero->flag = s_NONE;
+        zero->centralVector["0"] = 0;
+
+        std::map<std::string, double>::iterator itr;
+        for(itr = rhs->centralVector.begin(); itr != rhs->centralVector.end(); ++itr)
+        {
+            if(use->centralVector.find(itr->first) == use->centralVector.end())
+            {
+                use->centralVector[itr->first] = itr->second;
+            }
+            else
+            {
+                use->centralVector[itr->first] = use->centralVector[itr->first] - itr->second;
+            }
+        }
+        for(itr = rhs->perturbedVector.begin(); itr != rhs->perturbedVector.end(); ++itr)
+        {
+            if(use->perturbedVector.find(itr->first) == use->perturbedVector.end())
+            {
+                use->perturbedVector[itr->first] = itr->second;
+            }
+            else
+            {
+                use->perturbedVector[itr->first] = use->perturbedVector[itr->first] - itr->second;
+            }
+        }
+
+
+        //printStackValue(use);
+
         int trueIsBot = 0;
         int falseIsBot = 0;
+
+        double mint = use->centralVector["0"];
+        double maxt = use->centralVector["0"];
+
+        double minf = use->centralVector["0"];
+        double maxf = use->centralVector["0"];
+
         std::vector<std::pair<double,double>> constraintOverCentralMatrix; // saves the constains over Cx
         std::vector<std::pair<double,double>> constraintOverPerturbedMatrix; // saves the constains over Px
         std::pair<double,double> p;
+
+        result_true = addVariableToAffineSet(use, result_true);
+        result_false = addVariableToAffineSet(use, result_false);
+
         for(int i = 1; i < result_true->n; i++)
         {
             if(trueIsBot == 1)
                 break;
-            p = getConstraint(0,i,lhs,rhs,result_true);
+            p = getConstraint(0,i,use,zero,result_true);
             if(p.second < p.first)
                 trueIsBot = 1;
             constraintOverCentralMatrix.push_back(p);
+
+            if(auto it = use->centralVector.find(std::to_string(i)) != use->centralVector.end())
+            {
+                mint = mint + use->centralVector[std::to_string(i)]*p.first;
+                maxt = maxt + use->centralVector[std::to_string(i)]*p.second;
+            }
+
         }
+
         for(int i = 0; i < result_true->m; i++)
         {
             if(trueIsBot == 1)
                 break;
-            p = getConstraint(1,i,lhs,rhs,result_true);
+            p = getConstraint(1,i,use,zero,result_true);
             if(p.second < p.first)
                 trueIsBot = 1;
             constraintOverPerturbedMatrix.push_back(p);
+
+            if(auto it = use->perturbedVector.find(std::to_string(i)) != use->perturbedVector.end())
+            {
+                mint = mint + use->perturbedVector[std::to_string(i)]*p.first;
+                maxt = maxt + use->perturbedVector[std::to_string(i)]*p.second;
+            }
+            
         }
+
+
         if(trueIsBot == 0)
         {
             result_true->constraintOverCentralMatrix = constraintOverCentralMatrix;
             result_true->constraintOverPerturbedMatrix = constraintOverPerturbedMatrix;
+            std::vector<std::pair<double,double>> falseConstraintOverCentralMatrix;
+            std::vector<std::pair<double,double>> falseConstraintOverPerturbedMatrix;
+            for(auto itr = constraintOverCentralMatrix.begin(); itr != constraintOverCentralMatrix.end(); ++itr)
+            {
+                p = complimentConstraint(*itr);
+                falseConstraintOverCentralMatrix.push_back(complimentConstraint(*itr));
+
+                if(complimentConstraint(*itr).second < complimentConstraint(*itr).first)
+                {
+                    result_false = (ZonotopeAbstractValue*) botValue();
+                    falseIsBot = 1;
+                    break;
+                }
+            }
+            for(auto itr = constraintOverPerturbedMatrix.begin(); itr != constraintOverPerturbedMatrix.end(); ++itr)
+            {
+                p = complimentConstraint(*itr);
+                falseConstraintOverPerturbedMatrix.push_back(p);
+
+                if(complimentConstraint(*itr).second < complimentConstraint(*itr).first || falseIsBot == 1)
+                {
+                    result_false = (ZonotopeAbstractValue*) botValue();
+                    break;
+                }
+            }
+
+            for(int i = 1; i < constraintOverCentralMatrix.size(); i++)
+            {
+                if(auto it = use->centralVector.find(std::to_string(i)) != use->centralVector.end())
+                {
+                    minf = minf + use->centralVector[std::to_string(i)]*p.first;
+                    maxf = maxf + use->centralVector[std::to_string(i)]*p.second;
+                }
+            }
+
+            for(int i = 0; i < constraintOverPerturbedMatrix.size(); i++)
+            {
+                if(auto it = use->perturbedVector.find(std::to_string(i)) != use->perturbedVector.end())
+                {
+                    minf = minf + use->perturbedVector[std::to_string(i)]*p.first;
+                    maxf = maxf + use->perturbedVector[std::to_string(i)]*p.second;
+                }
+            }
+
+            if(mint >= 0)
+                result_true = (ZonotopeAbstractValue*) botValue();
+            
+            if(minf >= 0)
+                result_false = (ZonotopeAbstractValue*) botValue();
+            else
+            {
+                result_false->constraintOverCentralMatrix = falseConstraintOverCentralMatrix;
+                result_false->constraintOverPerturbedMatrix = falseConstraintOverPerturbedMatrix;
+            }
         }
+
         else
         {
             result_true = (ZonotopeAbstractValue*) botValue();
+            result_false = (ZonotopeAbstractValue*) topValue();
         }
     }
+
     else if(strcmp(opcode.c_str(),">") == 0)
     {
         return assumeConstraint("<",rhs_stack_value,lhs_stack_value,current_abstract_value);
@@ -702,7 +1076,7 @@ std::pair<AbstractValue*, AbstractValue*> Zonotope::assumeConstraint(std::string
 
     // Add the constraint lhs opcode rhs to result_true
     // Add the constraint !(lhs opcode rhs) to result_false
-    
+
     return std::make_pair<AbstractValue*, AbstractValue*>(result_true, result_false);
 }
 
@@ -917,6 +1291,9 @@ bool Zonotope::checkOverflow(std::string datatype, std::pair<T1, T2> interval) /
 
 double Zonotope::argmin(double a, double b) // gives the min. interval length in which both a and b can be covered
 {
+
+    std::cout << "I am in Zonotope::argmin" << std::endl;
+
     if(a*b < 0) // that is if they lie on either side of zero
         return 0;
     else if(a >0 && b > 0)
@@ -1180,6 +1557,9 @@ std::pair<double, double> Zonotope::getConstraint(int CorP, int pos, ZonotopeSta
 
 std::pair<double,double> Zonotope::intervalMeet(std::pair<double,double> p1, std::pair<double,double> p2)
 {
+
+    std::cout << "I am in Zonotope::intervalMeet" << std::endl;
+
     // considering the cases where the meet gives an impossible value
     if((p1.second < p2.first) || (p2.second < p1.first))
         return std::make_pair(1,-1);
@@ -1189,6 +1569,9 @@ std::pair<double,double> Zonotope::intervalMeet(std::pair<double,double> p1, std
 
 bool Zonotope::compareStackValues(ZonotopeStackValue* s1, ZonotopeStackValue* s2)
 {
+
+    std::cout << "I am in Zontope::compareStackValues" << std::endl;
+
     if(s1->varName == s2->varName)
     {
         if(s1->varPos == s2->varPos)
@@ -1206,4 +1589,24 @@ bool Zonotope::compareStackValues(ZonotopeStackValue* s1, ZonotopeStackValue* s2
         }
     }
     return false;
+}
+
+std::pair<double, double> Zonotope::complimentConstraint(std::pair<double,double> p)
+{
+
+    std::cout << "I am in Zonotope::complimentConstraint" << std::endl;
+
+    if(p.first >= p.second)
+        return std::make_pair(-1,1);
+    else if(p.first == -1 && p.second == 1)
+        return std::make_pair(1,-1);
+    else
+    {
+        if(p.first == -1)
+            return std::make_pair(p.second, 1);
+        else if(p.second == 1)
+            return std::make_pair(-1, p.first);
+        else
+            return std::make_pair(-1,1);
+    }
 }
